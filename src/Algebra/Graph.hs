@@ -64,51 +64,71 @@ import qualified Data.IntSet                      as IntSet
 import qualified Data.Set                         as Set
 import qualified Data.Tree                        as Tree
 
+-- $setup
+-- >>> import Prelude hiding ((+),(*))
+-- >>> (+) = Overlay; infixl 6 +
+-- >>> (*) = Connect; infixl 7 *
+-- >>> import Test.QuickCheck
+-- >>> :{
+-- instance Arbitrary a => Arbitrary (Graph a) where
+--  arbitrary = sized expr
+--    where
+--      expr 0 = return C.empty
+--      expr 1 = C.vertex <$> arbitrary
+--      expr n = do
+--        left <- choose (0, n)
+--        oneof [ C.overlay <$> expr left <*> expr (n - left) , C.connect <$> expr left <*> expr (n - left) ]
+--  shrink Empty         = []
+--  shrink (Vertex    _) = [Empty]
+--  shrink (Overlay x y) = [Empty, x, y] ++ [Overlay x' y' | (x', y') <- shrink (x, y) ]
+--  shrink (Connect x y) = [Empty, x, y, Overlay x y] ++ [Connect x' y' | (x', y') <- shrink (x, y) ]
+--  :}
+
 {-| The 'Graph' data type is a deep embedding of the core graph construction
 primitives 'empty', 'vertex', 'overlay' and 'connect'. We define a 'Num'
 instance as a convenient notation for working with graphs:
 
-    > 0           == Vertex 0
-    > 1 + 2       == Overlay (Vertex 1) (Vertex 2)
-    > 1 * 2       == Connect (Vertex 1) (Vertex 2)
-    > 1 + 2 * 3   == Overlay (Vertex 1) (Connect (Vertex 2) (Vertex 3))
-    > 1 * (2 + 3) == Connect (Vertex 1) (Overlay (Vertex 2) (Vertex 3))
+prop> 0           == Vertex 0
+prop> 1 + 2       == Overlay (Vertex 1) (Vertex 2)
+prop> 1 * 2       == Connect (Vertex 1) (Vertex 2)
+prop> 1 + 2 * 3   == Overlay (Vertex 1) (Connect (Vertex 2) (Vertex 3))
+prop> 1 * (2 + 3) == Connect (Vertex 1) (Overlay (Vertex 2) (Vertex 3))
 
 The 'Eq' instance is currently implemented using the 'AM.AdjacencyMap' as the
 /canonical graph representation/ and satisfies all axioms of algebraic graphs:
 
     * 'overlay' is commutative and associative:
 
-        >       x + y == y + x
-        > x + (y + z) == (x + y) + z
+    prop>       (x + y) == (y + x)
+    prop> x + (y + z) == (x + y) + z
 
     * 'connect' is associative and has 'empty' as the identity:
 
-        >   x * empty == x
-        >   empty * x == x
-        > x * (y * z) == (x * y) * z
+    prop>   x * empty == x
+    prop>   empty * x == x
+    prop> x * (y * z) == (x * y) * z
 
     * 'connect' distributes over 'overlay':
 
-        > x * (y + z) == x * y + x * z
-        > (x + y) * z == x * z + y * z
+    prop> x * (y + z) == x * y + x * z
+    prop> (x + y) * z == x * z + y * z
 
     * 'connect' can be decomposed:
 
-        > x * y * z == x * y + x * z + y * z
+    prop> x * y * z == x * y + x * z + y * z
 
 The following useful theorems can be proved from the above set of axioms.
 
     * 'overlay' has 'empty' as the identity and is idempotent:
 
-        >   x + empty == x
-        >   empty + x == x
-        >       x + x == x
+    prop>   x + empty == x
+    prop>   empty + x == x
+    prop>       x + x == x
 
     * Absorption and saturation of 'connect':
 
-        > x * y + x + y == x * y
-        >     x * x * x == x * x
+    prop> x * y + x + y == x * y
+    prop>     x * x * x == x * x
 
 When specifying the time and memory complexity of graph algorithms, /n/ will
 denote the number of vertices in the graph, /m/ will denote the number of
@@ -203,13 +223,12 @@ instance MonadPlus Graph where
 -- | Construct the /empty graph/. An alias for the constructor 'Empty'.
 -- Complexity: /O(1)/ time, memory and size.
 --
--- @
--- 'isEmpty'     empty == True
--- 'hasVertex' x empty == False
--- 'vertexCount' empty == 0
--- 'edgeCount'   empty == 0
--- 'size'        empty == 1
--- @
+-- prop> isEmpty empty     == True
+-- prop> vertexCount empty == 0
+-- prop> edgeCount empty   == 0
+-- prop> size empty        == 1
+-- prop> hasVertex x empty == False
+--
 empty :: Graph a
 empty = Empty
 
@@ -408,8 +427,8 @@ isEmpty = H.isEmpty
 -- size ('vertex' x)    == 1
 -- size ('overlay' x y) == size x + size y
 -- size ('connect' x y) == size x + size y
--- size x             >= 1
--- size x             >= 'vertexCount' x
+-- size x               >= 1
+-- size x               >= 'vertexCount' x
 -- @
 size :: Graph a -> Int
 size = foldg 1 (const 1) (+) (+)

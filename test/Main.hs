@@ -1,19 +1,12 @@
-import Algebra.Graph.Test.AdjacencyMap
-import Algebra.Graph.Test.Export
-import Algebra.Graph.Test.Fold
-import Algebra.Graph.Test.Graph
-import Algebra.Graph.Test.IntAdjacencyMap
-import Algebra.Graph.Test.Internal
-import Algebra.Graph.Test.NonEmptyGraph
-import Algebra.Graph.Test.Relation
+import Test.DocTest
 
 main :: IO ()
-main = do
-    testAdjacencyMap
-    testExport
-    testFold
-    testGraph
-    testGraphNonEmpty
-    testIntAdjacencyMap
-    testInternal
-    testRelation
+main = doctest
+    [ "-isrc"
+    ,"-XTupleSections"
+    ,"-XFlexibleContexts"
+    ,"-XGeneralizedNewtypeDeriving"
+    ,"-XScopedTypeVariables"
+    ,"-XTypeFamilies"
+    , "src/Algebra/Graph.hs"]
+

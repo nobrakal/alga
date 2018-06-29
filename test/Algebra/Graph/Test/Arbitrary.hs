@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleInstances #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.Test.Arbitrary
@@ -51,9 +52,9 @@ instance Arbitrary a => Arbitrary (Graph a) where
 
     shrink Empty         = []
     shrink (Vertex    _) = [Empty]
-    shrink (Overlay x y) = [Empty, x, y]
+    shrink (Overlay x y) = [Empty, fromNonEmpty x, fromNonEmpty y]
                         ++ [Overlay x' y' | (x', y') <- shrink (x, y) ]
-    shrink (Connect x y) = [Empty, x, y, Overlay x y]
+    shrink (Connect x y) = [Empty, fromNonEmpty x, fromNonEmpty y, Overlay x y]
                         ++ [Connect x' y' | (x', y') <- shrink (x, y) ]
 
 -- | Generate an arbitrary 'NonEmptyGraph' value of a specified size.

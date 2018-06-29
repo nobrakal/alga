@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternSynonyms #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph
@@ -20,7 +20,9 @@
 -----------------------------------------------------------------------------
 module Algebra.Graph (
     -- * Algebraic data type for graphs
-    Graph (..),
+    Graph,
+
+    pattern Empty, pattern Vertex, pattern Overlay, pattern Connect,
 
     -- * Basic graph construction primitives
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
@@ -48,7 +50,10 @@ module Algebra.Graph (
     box,
 
     -- * Conversion to graphs
-    adjacencyMap, adjacencyIntMap, Context (..), context
+    adjacencyMap, adjacencyIntMap, Context (..), context,
+
+    -- * fromNonEmpty
+    fromNonEmpty
   ) where
 
 import Prelude ()
@@ -66,6 +71,11 @@ import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
 import Data.Map    (Map)
 import Data.Set    (Set)
+
+import Algebra.Graph.NonEmpty (NonEmptyGraph)
+import qualified Algebra.Graph.NonEmpty as N
+
+import qualified Data.List.NonEmpty as NL
 
 import qualified Algebra.Graph.AdjacencyMap    as AM
 import qualified Algebra.Graph.AdjacencyIntMap as AIM
@@ -149,22 +159,33 @@ time and /O(s + m)/ memory. This is also the complexity of the graph equality te
 because it is currently implemented by converting graph expressions to canonical
 representations based on adjacency maps.
 -}
-data Graph a = Empty
-             | Vertex a
-             | Overlay (Graph a) (Graph a)
-             | Connect (Graph a) (Graph a)
+
+data Graph a = EmptyGr
+             | NE (NonEmptyGraph a)
              deriving (Foldable, Functor, Show, Traversable)
 
+pattern Empty :: Graph a
+pattern Empty = EmptyGr
+
+pattern Vertex :: a -> Graph a
+pattern Vertex a = NE (N.Vertex a)
+
+pattern Overlay :: NonEmptyGraph a -> NonEmptyGraph a -> Graph a
+pattern Overlay a b = NE (N.Overlay a b)
+
+pattern Connect :: NonEmptyGraph a -> NonEmptyGraph a -> Graph a
+pattern Connect a b = NE (N.Connect a b)
+
+{-# COMPLETE Empty, Vertex, Overlay, Connect #-}
+
 instance NFData a => NFData (Graph a) where
-    rnf Empty         = ()
-    rnf (Vertex  x  ) = rnf x
-    rnf (Overlay x y) = rnf x `seq` rnf y
-    rnf (Connect x y) = rnf x `seq` rnf y
+    rnf EmptyGr = ()
+    rnf (NE g)  = rnf g 
 
 instance Num a => Num (Graph a) where
-    fromInteger = Vertex . fromInteger
-    (+)         = Overlay
-    (*)         = Connect
+    fromInteger = vertex . fromInteger
+    (+)         = overlay
+    (*)         = connect
     signum      = const Empty
     abs         = id
     negate      = id
@@ -184,20 +205,23 @@ equalsInt :: Graph Int -> Graph Int -> Bool
 equalsInt x y = adjacencyIntMap x == adjacencyIntMap y
 
 instance Applicative Graph where
-    pure  = Vertex
-    (<*>) = ap
+  pure  = Vertex
+  (<*>) = ap
 
 instance Monad Graph where
-    return  = pure
-    g >>= f = foldg Empty f Overlay Connect g
+  return  = pure
+  g >>= f = foldg Empty f overlay connect g
 
 instance Alternative Graph where
-    empty = Empty
-    (<|>) = Overlay
+  empty = Empty
+  (<|>) = overlay
 
 instance MonadPlus Graph where
-    mzero = Empty
-    mplus = Overlay
+  mzero = Empty
+  mplus = overlay
+
+fromNonEmpty :: NonEmptyGraph a -> Graph a
+fromNonEmpty = NE
 
 -- | Construct the /empty graph/. An alias for the constructor 'Empty'.
 -- Complexity: /O(1)/ time, memory and size.
@@ -255,7 +279,9 @@ edge x y = connect (vertex x) (vertex y)
 -- 'edgeCount'   (overlay 1 2) == 0
 -- @
 overlay :: Graph a -> Graph a -> Graph a
-overlay = Overlay
+overlay EmptyGr a = a
+overlay a EmptyGr = a
+overlay (NE a) (NE b) = Overlay a b
 
 -- | /Connect/ two graphs. An alias for the constructor 'Connect'. This is an
 -- associative operation with the identity 'empty', which distributes over
@@ -278,7 +304,9 @@ overlay = Overlay
 -- 'edgeCount'   (connect 1 2) == 1
 -- @
 connect :: Graph a -> Graph a -> Graph a
-connect = Connect
+connect EmptyGr a = a
+connect a EmptyGr = a
+connect (NE a) (NE b) = Connect a b
 
 -- | Construct the graph comprising a given list of isolated vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -362,12 +390,8 @@ fromAdjacencyList = overlays . map (uncurry star)
 -- foldg True  (const False) (&&)    (&&)           == 'isEmpty'
 -- @
 foldg :: b -> (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> Graph a -> b
-foldg e v o c = go
-  where
-    go Empty         = e
-    go (Vertex  x  ) = v x
-    go (Overlay x y) = o (go x) (go y)
-    go (Connect x y) = c (go x) (go y)
+foldg e _ _ _ EmptyGr = e
+foldg _ v o c (NE g)  = N.foldg1 v o c g 
 
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
@@ -397,11 +421,9 @@ isSubgraphOf x y = overlay x y == y
 -- @
 {-# SPECIALISE (===) :: Graph Int -> Graph Int -> Bool #-}
 (===) :: Eq a => Graph a -> Graph a -> Bool
-Empty           === Empty           = True
-(Vertex  x1   ) === (Vertex  x2   ) = x1 ==  x2
-(Overlay x1 y1) === (Overlay x2 y2) = x1 === x2 && y1 === y2
-(Connect x1 y1) === (Connect x2 y2) = x1 === x2 && y1 === y2
-_               === _               = False
+EmptyGr === EmptyGr = True
+(NE a)  === (NE b)  = a N.=== b
+_       === _       = False
 
 infix 4 ===
 
@@ -582,6 +604,7 @@ adjacencyList = AM.adjacencyList . fromGraphAM
 -- direct successors.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
 -- graph can be quadratic with respect to the expression size /s/.
+{-# SPECIALISE adjacencyMap :: Graph Int -> Map Int (Set Int) #-}
 adjacencyMap :: Ord a => Graph a -> Map a (Set a)
 adjacencyMap = AM.adjacencyMap . fromGraphAM
 
@@ -797,7 +820,6 @@ removeVertex v = induce (/= v)
 removeEdge :: Eq a => a -> a -> Graph a -> Graph a
 removeEdge s t = filterContext s (/=s) (/=t)
 
-
 -- TODO: Export
 -- | Filter vertices in a subgraph context.
 {-# SPECIALISE filterContext :: Int -> (Int -> Bool) -> (Int -> Bool) -> Graph Int -> Graph Int #-}
@@ -862,7 +884,8 @@ splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
 -- 'edgeList' . transpose  == 'Data.List.sort' . map 'Data.Tuple.swap' . 'edgeList'
 -- @
 transpose :: Graph a -> Graph a
-transpose = foldg Empty Vertex Overlay (flip Connect)
+transpose EmptyGr = EmptyGr
+transpose (NE g)  = NE $ N.transpose g
 
 -- | Construct the /induced subgraph/ of a given graph by removing the
 -- vertices that do not satisfy a given predicate.
@@ -877,11 +900,7 @@ transpose = foldg Empty Vertex Overlay (flip Connect)
 -- 'isSubgraphOf' (induce p x) x == True
 -- @
 induce :: (a -> Bool) -> Graph a -> Graph a
-induce p = foldg Empty (\x -> if p x then Vertex x else Empty) (k Overlay) (k Connect)
-  where
-    k _ x     Empty = x -- Constant folding to get rid of Empty leaves
-    k _ Empty y     = y
-    k f x     y     = f x y
+induce p = foldg Empty (\x -> if p x then Vertex x else Empty) overlay connect
 
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.
@@ -901,7 +920,8 @@ induce p = foldg Empty (\x -> if p x then Vertex x else Empty) (k Overlay) (k Co
 -- @
 {-# SPECIALISE simplify :: Graph Int -> Graph Int #-}
 simplify :: Ord a => Graph a -> Graph a
-simplify = foldg Empty Vertex (simple Overlay) (simple Connect)
+simplify EmptyGr = EmptyGr
+simplify (NE g)  = NE $ N.simplify g
 
 {-# SPECIALISE simple :: (Int -> Int -> Int) -> Int -> Int -> Int #-}
 simple :: Eq g => (g -> g -> g) -> g -> g -> g
@@ -938,10 +958,15 @@ simple op x y
 -- 'edgeCount'   (box x y) <= 'vertexCount' x * 'edgeCount' y + 'edgeCount' x * 'vertexCount' y
 -- @
 box :: Graph a -> Graph b -> Graph (a, b)
-box x y = overlays $ xs ++ ys
+box EmptyGr _ = Empty
+box _ EmptyGr = Empty
+box (NE x) (NE y) = NE $ N.overlays1 $ xs `append` ys
   where
-    xs = map (\b -> fmap (,b) x) $ toList y
-    ys = map (\a -> fmap (a,) y) $ toList x
+    xs = NL.map (\b -> fmap (,b) x) $ N.toNonEmpty y
+    ys = NL.map (\a -> fmap (a,) y) $ N.toNonEmpty x
+
+append :: NL.NonEmpty a -> NL.NonEmpty a -> NL.NonEmpty a
+append (x NL.:| xs) (y NL.:| ys) = x NL.:| (xs ++ [y] ++ ys)
 
 -- | 'Focus' on a specified subgraph.
 focus :: (a -> Bool) -> Graph a -> Focus a

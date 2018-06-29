@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstrainedClassMethods, RankNTypes #-}
+{-# LANGUAGE ConstrainedClassMethods, RankNTypes, TypeSynonymInstances, FlexibleInstances #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.Test.API
@@ -194,7 +194,7 @@ instance Ord a => GraphAPI (Graph.Graph a) where
     mergeVertices     = Graph.mergeVertices
     splitVertex       = Graph.splitVertex
     transpose         = Graph.transpose
-    gmap              = fmap
+    gmap              = fmap 
     induce            = Graph.induce
     bind              = (>>=)
     simplify          = Graph.simplify

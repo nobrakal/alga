@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstrainedClassMethods #-}
+{-# LANGUAGE ConstrainedClassMethods, FlexibleInstances #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.ToGraph
@@ -29,6 +29,7 @@ import Data.Map    (Map)
 import Data.Set    (Set)
 
 import qualified Algebra.Graph                 as G
+import qualified Algebra.Graph.NonEmpty        as N
 import qualified Algebra.Graph.AdjacencyMap    as AM
 import qualified Algebra.Graph.AdjacencyIntMap as AIM
 import qualified Algebra.Graph.Relation        as R
@@ -49,7 +50,7 @@ class ToGraph t where
     -- toGraph == 'foldg' 'G.Empty' 'G.Vertex' 'G.Overlay' 'G.Connect'
     -- @
     toGraph :: t -> G.Graph (ToVertex t)
-    toGraph = foldg G.Empty G.Vertex G.Overlay G.Connect
+    toGraph = foldg G.Empty G.Vertex G.overlay G.connect
 
     -- | The method 'foldg' is used for generalised graph folding. It collapses
     -- a given value by applying the provided graph construction primitives. The
@@ -330,3 +331,7 @@ instance Ord a => ToGraph (R.Relation a) where
     adjacencyIntMap = IntMap.fromAscList
                     . map (fmap IntSet.fromAscList)
                     . R.adjacencyList
+
+instance ToGraph (N.NonEmptyGraph a) where
+    type ToVertex (N.NonEmptyGraph a) = a
+    foldg _ = N.foldg1

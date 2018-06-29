@@ -369,7 +369,7 @@ testToGraphDefault :: Testsuite -> IO ()
 testToGraphDefault (Testsuite prefix (%)) = do
     putStrLn $ "\n============ " ++ prefix ++ "toGraph et al. ============"
     test "toGraph                  == foldg Empty Vertex Overlay Connect" $ \x ->
-          toGraph % x              == foldg Empty Vertex Overlay Connect x
+          toGraph % x              == foldg G.Empty G.Vertex G.overlay G.connect x
 
     test "foldg                    == Algebra.Graph.foldg . toGraph" $ \e (apply -> v) (applyFun2 -> o) (applyFun2 -> c) x ->
           foldg e v o c x          == (G.foldg (e :: Int) v o c . toGraph) % x

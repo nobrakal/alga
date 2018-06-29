@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.Class
@@ -203,6 +205,7 @@ instance Reflexive  ()
 instance Transitive ()
 instance Preorder   ()
 
+  {-
 -- Note: Maybe g and (a -> g) instances are identical and use the Applicative's
 -- pure and <*>. We do not provide a general instance for all Applicative
 -- functors because that would lead to overlapping instances.
@@ -217,6 +220,7 @@ instance Undirected g => Undirected (Maybe g)
 instance Reflexive  g => Reflexive  (Maybe g)
 instance Transitive g => Transitive (Maybe g)
 instance Preorder   g => Preorder   (Maybe g)
+-}
 
 instance Graph g => Graph (a -> g) where
     type Vertex (a -> g) = Vertex g

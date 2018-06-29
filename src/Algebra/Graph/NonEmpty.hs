@@ -43,7 +43,9 @@ module Algebra.Graph.NonEmpty (
     transpose, induce1, simplify,
 
     -- * Graph composition
-    box
+    box,
+
+    toNonEmpty
   ) where
 
 import Prelude ()
@@ -52,6 +54,11 @@ import Prelude.Compat
 #if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup
 #endif
+
+import Data.IntMap (IntMap)
+import Data.IntSet (IntSet)
+import Data.Map    (Map)
+import Data.Set    (Set)
 
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
@@ -62,11 +69,13 @@ import Data.Foldable (toList)
 
 import Algebra.Graph.Internal
 
-import qualified Algebra.Graph.ToGraph as T
 import qualified Data.IntSet           as IntSet
 import qualified Data.List.NonEmpty    as NonEmpty
 import qualified Data.Set              as Set
 import qualified Data.Tree             as Tree
+
+import qualified Algebra.Graph.AdjacencyMap    as AM
+import qualified Algebra.Graph.AdjacencyIntMap as AIM
 
 {-| The 'NonEmptyGraph' data type is a deep embedding of the core graph
 construction primitives 'vertex', 'overlay' and 'connect'. As one can guess from
@@ -141,10 +150,6 @@ instance NFData a => NFData (NonEmptyGraph a) where
     rnf (Overlay x y) = rnf x `seq` rnf y
     rnf (Connect x y) = rnf x `seq` rnf y
 
-instance T.ToGraph (NonEmptyGraph a) where
-    type ToVertex (NonEmptyGraph a) = a
-    foldg _ = foldg1
-
 instance Num a => Num (NonEmptyGraph a) where
     fromInteger = Vertex . fromInteger
     (+)         = Overlay
@@ -154,7 +159,10 @@ instance Num a => Num (NonEmptyGraph a) where
     negate      = id
 
 instance Ord a => Eq (NonEmptyGraph a) where
-    x == y = T.adjacencyMap x == T.adjacencyMap y
+    x == y = adjacencyMap x == adjacencyMap y
+
+adjacencyMap :: Ord a => NonEmptyGraph a -> Map a (Set a)
+adjacencyMap = AM.adjacencyMap . foldg1 AM.vertex AM.overlay AM.connect
 
 instance Applicative NonEmptyGraph where
     pure  = Vertex
@@ -354,8 +362,15 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- hasEdge x y . 'removeEdge' x y == const False
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
-hasEdge :: Ord a => a -> a -> NonEmptyGraph a -> Bool
-hasEdge = T.hasEdge
+hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
+hasEdge u v = maybe False hasEdge' . induce1 (`elem` [u,v])
+  where
+    hasEdge' (Overlay x y) = hasEdge' x || hasEdge' y
+    hasEdge' (Connect x y) =
+      let !isInLeft = hasVertex u x
+          !isInRight = hasVertex v y
+       in (isInLeft && isInRight) || (isInLeft && hasEdge' x) || (isInRight && hasEdge' y)
+    hasEdge' _ = False
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -366,7 +381,7 @@ hasEdge = T.hasEdge
 -- vertexCount            == 'length' . 'vertexList1'
 -- @
 vertexCount :: Ord a => NonEmptyGraph a -> Int
-vertexCount = T.vertexCount
+vertexCount = Set.size . vertexSet 
 
 -- | The number of edges in a graph.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
@@ -378,7 +393,7 @@ vertexCount = T.vertexCount
 -- edgeCount            == 'length' . 'edgeList'
 -- @
 edgeCount :: Ord a => NonEmptyGraph a -> Int
-edgeCount = T.edgeCount
+edgeCount = length . edgeList
 
 -- | The sorted list of vertices of a given graph.
 -- Complexity: /O(s * log(n))/ time and /O(n)/ memory.
@@ -388,7 +403,7 @@ edgeCount = T.edgeCount
 -- vertexList1 . 'vertices1' == 'Data.List.NonEmpty.nub' . 'Data.List.NonEmpty.sort'
 -- @
 vertexList1 :: Ord a => NonEmptyGraph a -> NonEmpty a
-vertexList1 = NonEmpty.fromList . T.vertexList
+vertexList1 = NonEmpty.fromList . Set.toAscList . vertexSet
 
 -- | The sorted list of edges of a graph.
 -- Complexity: /O(s + m * log(m))/ time and /O(m)/ memory. Note that the number of
@@ -402,7 +417,7 @@ vertexList1 = NonEmpty.fromList . T.vertexList
 -- edgeList . 'transpose'    == 'Data.List.sort' . map 'Data.Tuple.swap' . edgeList
 -- @
 edgeList :: Ord a => NonEmptyGraph a -> [(a, a)]
-edgeList = T.edgeList
+edgeList = AM.edgeList . foldg1 AM.vertex AM.overlay AM.connect
 
 -- | The set of vertices of a given graph.
 -- Complexity: /O(s * log(n))/ time and /O(n)/ memory.
@@ -413,7 +428,7 @@ edgeList = T.edgeList
 -- vertexSet . 'clique1'   == Set.'Set.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 vertexSet :: Ord a => NonEmptyGraph a -> Set.Set a
-vertexSet = T.vertexSet
+vertexSet = foldg1 Set.singleton Set.union Set.union
 
 -- | The set of vertices of a given graph. Like 'vertexSet' but specialised for
 -- graphs with vertices of type 'Int'.
@@ -425,7 +440,7 @@ vertexSet = T.vertexSet
 -- vertexIntSet . 'clique1'   == IntSet.'IntSet.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 vertexIntSet :: NonEmptyGraph Int -> IntSet.IntSet
-vertexIntSet = T.vertexIntSet
+vertexIntSet = foldg1 IntSet.singleton IntSet.union IntSet.union
 
 -- | The set of edges of a given graph.
 -- Complexity: /O(s * log(m))/ time and /O(m)/ memory.
@@ -436,7 +451,7 @@ vertexIntSet = T.vertexIntSet
 -- edgeSet . 'edges1'   == Set.'Set.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 edgeSet :: Ord a => NonEmptyGraph a -> Set.Set (a, a)
-edgeSet = T.edgeSet
+edgeSet = AM.edgeSet . foldg1 AM.vertex AM.overlay AM.connect
 
 -- | The /path/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the

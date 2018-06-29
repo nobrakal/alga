@@ -947,10 +947,6 @@ box x y = overlays $ xs ++ ys
 focus :: (a -> Bool) -> Graph a -> Focus a
 focus f = foldg emptyFocus (vertexFocus f) overlayFoci connectFoci
 
--- | The context of a subgraph comprises the input and output vertices outside
--- the subgraph that are connected to the vertices inside the subgraph.
-data Context a = Context { inputs :: [a], outputs :: [a] }
-
 -- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
 -- could not be obtained.
 context :: (a -> Bool) -> Graph a -> Maybe (Context a)

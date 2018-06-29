@@ -19,10 +19,10 @@
 -----------------------------------------------------------------------------
 module Algebra.Graph.NonEmpty (
     -- * Algebraic data type for non-empty graphs
-    NonEmptyGraph (..), toNonEmptyGraph,
+    NonEmptyGraph (..),
 
     -- * Basic graph construction primitives
-    vertex, edge, overlay, overlay1, connect, vertices1, edges1, overlays1,
+    vertex, edge, overlay, connect, vertices1, edges1, overlays1,
     connects1,
 
     -- * Graph folding
@@ -57,7 +57,11 @@ import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
 import Data.List.NonEmpty (NonEmpty (..))
 
-import qualified Algebra.Graph         as G
+import Control.Applicative (liftA2)
+import Data.Foldable (toList)
+
+import Algebra.Graph.Internal
+
 import qualified Algebra.Graph.ToGraph as T
 import qualified Data.IntSet           as IntSet
 import qualified Data.List.NonEmpty    as NonEmpty
@@ -160,21 +164,6 @@ instance Monad NonEmptyGraph where
     return  = pure
     g >>= f = foldg1 f Overlay Connect g
 
--- | Convert a 'G.Graph' into 'NonEmptyGraph'. Returns 'Nothing' if the argument
--- is 'G.empty'.
--- Complexity: /O(s)/ time, memory and size.
---
--- @
--- toNonEmptyGraph 'G.empty'       == Nothing
--- toNonEmptyGraph ('C.toGraph' x) == Just (x :: NonEmptyGraph a)
--- @
-toNonEmptyGraph :: G.Graph a -> Maybe (NonEmptyGraph a)
-toNonEmptyGraph = G.foldg Nothing (Just . Vertex) (go Overlay) (go Connect)
-  where
-    go _ Nothing  y        = y
-    go _ x        Nothing  = x
-    go f (Just x) (Just y) = Just (f x y)
-
 -- | Construct the graph comprising /a single isolated vertex/. An alias for the
 -- constructor 'Vertex'.
 -- Complexity: /O(1)/ time, memory and size.
@@ -217,18 +206,6 @@ edge u v = connect (vertex u) (vertex v)
 -- @
 overlay :: NonEmptyGraph a -> NonEmptyGraph a -> NonEmptyGraph a
 overlay = Overlay
-
--- | Overlay a possibly empty graph with a non-empty graph. If the first
--- argument is 'G.empty', the function returns the second argument; otherwise
--- it is semantically the same as 'overlay'.
--- Complexity: /O(s1)/ time and memory, and /O(s1 + s2)/ size.
---
--- @
---                overlay1 'G.empty' x == x
--- x /= 'G.empty' ==> overlay1 x     y == overlay (fromJust $ toNonEmptyGraph x) y
--- @
-overlay1 :: G.Graph a -> NonEmptyGraph a -> NonEmptyGraph a
-overlay1 = maybe id overlay . toNonEmptyGraph
 
 -- | /Connect/ two graphs. An alias for the constructor 'Connect'. This is an
 -- associative operation, which distributes over 'overlay' and obeys the
@@ -595,6 +572,7 @@ torus1 xs ys = circuit1 xs `box` circuit1 ys
 removeVertex1 :: Eq a => a -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
 removeVertex1 x = induce1 (/= x)
 
+
 -- | Remove an edge from a given graph.
 -- Complexity: /O(s)/ time, memory and size.
 --
@@ -612,10 +590,10 @@ removeEdge s t = filterContext s (/=s) (/=t)
 -- TODO: Here if @context (==s) g == Just ctx@ then we know for sure that
 -- @induce1 (/=s) g == Just subgraph@. Can we exploit this?
 filterContext :: Eq a => a -> (a -> Bool) -> (a -> Bool) -> NonEmptyGraph a -> NonEmptyGraph a
-filterContext s i o g = maybe g go $ G.context (==s) (T.toGraph g)
+filterContext s i o g = maybe g go $ context (==s) g
   where
-    go (G.Context is os) = G.induce (/=s) (T.toGraph g)  `overlay1`
-                           starTranspose s (filter i is) `overlay` star s (filter o os)
+    go (Context is os) = let rst = starTranspose s (filter i is) `overlay` star s (filter o os)
+                          in maybe rst (overlay rst) $ induce1 (/= s) g
 
 -- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a
 -- given 'NonEmptyGraph'. If @y@ already exists, @x@ and @y@ will be merged.
@@ -681,8 +659,12 @@ transpose = foldg1 vertex overlay (flip connect)
 -- induce1 p '>=>' induce1 q == induce1 (\\x -> p x && q x)
 -- @
 induce1 :: (a -> Bool) -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
-induce1 p = toNonEmptyGraph . G.induce p . T.toGraph
-
+induce1 p = foldg1 (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) (k Connect)
+  where
+    k _ Nothing a = a
+    k _ a Nothing = a
+    k f a b = liftA2 f a b 
+  
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.
 -- The function does not compute the simplest possible expression,
@@ -742,3 +724,15 @@ box x y = overlays1 xs `overlay` overlays1 ys
 -- Shall we export this? I suggest to wait for Foldable1 type class instead.
 toNonEmpty :: NonEmptyGraph a -> NonEmpty a
 toNonEmpty = foldg1 (:| []) (<>) (<>)
+
+-- | 'Focus' on a specified subgraph.
+focus :: (a -> Bool) -> NonEmptyGraph a -> Focus a
+focus f = foldg1 (vertexFocus f) overlayFoci connectFoci
+
+-- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
+-- could not be obtained.
+context :: (a -> Bool) -> NonEmptyGraph a -> Maybe (Context a)
+context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
+            | otherwise = Nothing
+  where
+    f = focus p g

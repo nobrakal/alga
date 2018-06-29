@@ -23,15 +23,12 @@ import Data.Semigroup
 
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Maybe
 import Data.Tree
 import Data.Tuple
 
 import Algebra.Graph.NonEmpty
 import Algebra.Graph.Test hiding (axioms, theorems)
-import Algebra.Graph.ToGraph (toGraph)
 
-import qualified Algebra.Graph      as G
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set           as Set
 import qualified Data.IntSet        as IntSet
@@ -94,12 +91,6 @@ testGraphNonEmpty = do
     test "((x >>= f) >>= g)    == (x >>= (\\y -> (f y) >>= g))" $ mapSize (min 10) $ \(x :: G) (apply -> f) (apply -> g) ->
           ((x >>= f) >>= g)    == (x >>= (\(y :: Int) -> (f y) >>= (g :: Int -> G)))
 
-    putStrLn $ "\n============ Graph.NonEmpty.toNonEmptyGraph ============"
-    test "toNonEmptyGraph empty       == Nothing" $
-          toNonEmptyGraph (G.empty :: G.Graph Int) == Nothing
-
-    test "toNonEmptyGraph (toGraph x) == Just (x :: NonEmptyGraph a)" $ \x ->
-          toNonEmptyGraph (toGraph x) == Just (x :: NonEmptyGraph Int)
 
     putStrLn $ "\n============ Graph.NonEmpty.vertex ============"
     test "hasVertex x (vertex x) == True" $ \(x :: Int) ->
@@ -154,14 +145,6 @@ testGraphNonEmpty = do
 
     test "edgeCount   (overlay 1 2) == 0" $
           edgeCount   (overlay 1 2 :: G) == 0
-
-    putStrLn $ "\n============ Graph.NonEmpty.overlay1 ============"
-    test "               overlay1 empty x == x" $ \(x :: G) ->
-                         overlay1 G.empty x == x
-
-    test "x /= empty ==> overlay1 x     y == overlay (fromJust $ toNonEmptyGraph x) y" $ \(x :: G.Graph Int) (y :: G) ->
-          x /= G.empty ==> overlay1 x   y == overlay (fromJust $ toNonEmptyGraph x) y
-
 
     putStrLn $ "\n============ Graph.NonEmpty.connect ============"
     test "hasVertex z (connect x y) == hasVertex z x || hasVertex z y" $ \(x :: G) y z ->

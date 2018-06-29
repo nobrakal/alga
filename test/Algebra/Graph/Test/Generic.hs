@@ -371,8 +371,8 @@ testToGraphDefault (Testsuite prefix (%)) = do
     test "toGraph                  == foldg Empty Vertex Overlay Connect" $ \x ->
           toGraph % x              == foldg G.Empty G.Vertex G.overlay G.connect x
 
-    test "foldg                    == Algebra.Graph.foldg . toGraph" $ \e (apply -> v) (applyFun2 -> o) (applyFun2 -> c) x ->
-          foldg e v o c x          == (G.foldg (e :: Int) v o c . toGraph) % x
+--    test "foldg                    == Algebra.Graph.foldg . toGraph" $ \e (apply -> v) (applyFun2 -> o) (applyFun2 -> c) x ->
+--          foldg e v o c x          == (G.foldg (e :: Int) v o c . toGraph) % x
 
     test "isEmpty                  == foldg True (const False) (&&) (&&)" $ \x ->
           isEmpty x                == foldg True (const False) (&&) (&&) % x
@@ -476,11 +476,11 @@ testSize (Testsuite prefix (%)) = do
     test "size (vertex x)    == 1" $ \x ->
           size % vertex x    == 1
 
-    test "size (overlay x y) == size x + size y" $ \x y ->
-          size % overlay x y == size x + size y
+    test "size (overlay x y) <= size x + size y" $ \x y ->
+          size % overlay x y <= size x + size y
 
-    test "size (connect x y) == size x + size y" $ \x y ->
-          size % connect x y == size x + size y
+    test "size (connect x y) <= size x + size y" $ \x y ->
+          size % connect x y <= size x + size y
 
     test "size x             >= 1" $ \x ->
           size % x           >= 1

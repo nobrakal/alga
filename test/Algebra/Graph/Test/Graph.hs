@@ -41,17 +41,14 @@ testGraph = do
     test "    x === x         == True" $ \(x :: G) ->
              (x === x)        == True
 
-    test "    x === x + empty == False" $ \(x :: G) ->
-             (x === x + empty)== False
+    test "    x === x + empty == True" $ \(x :: G) ->
+             (x === x + empty)== True
 
     test "x + y === x + y     == True" $ \(x :: G) y ->
          (x + y === x + y)    == True
 
     test "1 + 2 === 2 + 1     == False" $
          (1 + 2 === 2 + (1 :: G)) == False
-
-    test "x + y === x * y     == False" $ \(x :: G) y ->
-         (x + y === x * y)    == False
 
     putStrLn "\n============ Graph.mesh ============"
     test "mesh xs     []   == empty" $ \xs ->

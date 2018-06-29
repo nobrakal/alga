@@ -923,15 +923,6 @@ simplify :: Ord a => Graph a -> Graph a
 simplify EmptyGr = EmptyGr
 simplify (NE g)  = NE $ N.simplify g
 
-{-# SPECIALISE simple :: (Int -> Int -> Int) -> Int -> Int -> Int #-}
-simple :: Eq g => (g -> g -> g) -> g -> g -> g
-simple op x y
-    | x == z    = x
-    | y == z    = y
-    | otherwise = z
-  where
-    z = op x y
-
 -- | Compute the /Cartesian product/ of graphs.
 -- Complexity: /O(s1 * s2)/ time, memory and size, where /s1/ and /s2/ are the
 -- sizes of the given graphs.

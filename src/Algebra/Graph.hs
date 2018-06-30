@@ -332,7 +332,7 @@ vertices = maybe EmptyGr (NE . N.vertices1) . NL.nonEmpty
 -- 'edgeCount' . edges == 'length' . 'Data.List.nub'
 -- @
 edges :: [(a, a)] -> Graph a
-edges = overlays . map (uncurry edge)
+edges = maybe EmptyGr (NE . N.edges1) . NL.nonEmpty
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

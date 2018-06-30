@@ -261,7 +261,7 @@ vertex = Vertex
 -- 'vertexCount' (edge 1 2) == 2
 -- @
 edge :: a -> a -> Graph a
-edge x y = connect (vertex x) (vertex y)
+edge x y = Connect (N.Vertex x) (N.Vertex y)
 
 -- | /Overlay/ two graphs. An alias for the constructor 'Overlay'. This is a
 -- commutative, associative and idempotent operation with the identity 'empty'.
@@ -320,7 +320,7 @@ connect (NE a) (NE b) = Connect a b
 -- 'vertexSet'   . vertices == Set.'Set.fromList'
 -- @
 vertices :: [a] -> Graph a
-vertices = overlays . map vertex
+vertices = maybe EmptyGr (NE . N.vertices1) . NL.nonEmpty
 
 -- | Construct the graph from a list of edges.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -466,7 +466,8 @@ size = foldg 1 (const 1) (+) (+)
 -- @
 {-# SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
 hasVertex :: Eq a => a -> Graph a -> Bool
-hasVertex x = foldg False (==x) (||) (||)
+hasVertex _ EmptyGr = False
+hasVertex x  (NE g) = N.hasVertex x g
 
 -- TODO: Benchmark to see if this implementation is faster than the default
 -- implementation provided by the ToGraph type class.
@@ -482,7 +483,8 @@ hasVertex x = foldg False (==x) (||) (||)
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 hasEdge :: Ord a => a -> a -> Graph a -> Bool
-hasEdge u v = (edge u v `isSubgraphOf`) . induce (`elem` [u, v])
+hasEdge _ _ EmptyGr = False
+hasEdge u v (NE g) = N.hasEdge u v g
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.

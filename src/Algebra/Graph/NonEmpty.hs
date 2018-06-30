@@ -350,6 +350,7 @@ size = foldg1 (const 1) (+) (+)
 -- hasVertex x ('vertex' x) == True
 -- hasVertex 1 ('vertex' 2) == False
 -- @
+{-# SPECIALISE hasVertex :: Int -> NonEmptyGraph Int -> Bool #-}
 hasVertex :: Eq a => a -> NonEmptyGraph a -> Bool
 hasVertex v = foldg1 (==v) (||) (||)
 
@@ -362,6 +363,7 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- hasEdge x y . 'removeEdge' x y == const False
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
+{-# SPECIALISE hasEdge :: Int -> Int -> NonEmptyGraph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
 hasEdge u v = maybe False hasEdge' . induce1 (`elem` [u,v])
   where

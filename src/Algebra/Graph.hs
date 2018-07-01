@@ -438,8 +438,8 @@ infix 4 ===
 -- isEmpty ('removeEdge' x y $ 'edge' x y) == False
 -- @
 isEmpty :: Graph a -> Bool
-isEmpty EmptyGr = False
-isEmpty _ = True
+isEmpty EmptyGr = True
+isEmpty _ = False
 
 -- | The /size/ of a graph, i.e. the number of leaves of the expression
 -- including 'empty' leaves.

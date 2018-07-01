@@ -180,7 +180,7 @@ pattern Connect a b = NE (N.Connect a b)
 
 instance NFData a => NFData (Graph a) where
     rnf EmptyGr = ()
-    rnf (NE g)  = rnf g 
+    rnf (NE g)  = rnf g
 
 instance Num a => Num (Graph a) where
     fromInteger = vertex . fromInteger
@@ -391,7 +391,7 @@ fromAdjacencyList = overlays . map (uncurry star)
 -- @
 foldg :: b -> (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> Graph a -> b
 foldg e _ _ _ EmptyGr = e
-foldg _ v o c (NE g)  = N.foldg1 v o c g 
+foldg _ v o c (NE g)  = N.foldg1 v o c g
 
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
@@ -438,7 +438,8 @@ infix 4 ===
 -- isEmpty ('removeEdge' x y $ 'edge' x y) == False
 -- @
 isEmpty :: Graph a -> Bool
-isEmpty = foldg True (const False) (&&) (&&)
+isEmpty EmptyGr = False
+isEmpty _ = True
 
 -- | The /size/ of a graph, i.e. the number of leaves of the expression
 -- including 'empty' leaves.

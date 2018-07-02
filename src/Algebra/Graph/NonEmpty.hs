@@ -364,14 +364,11 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> NonEmptyGraph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
-hasEdge u v = maybe False hasEdge' . induce1 (`elem` [u,v])
-  where
-    hasEdge' (Overlay x y) = hasEdge' x || hasEdge' y
-    hasEdge' (Connect x y) =
-      let !isInLeft = hasVertex u x
-          !isInRight = hasVertex v y
-       in (isInLeft && isInRight) || (isInLeft && hasEdge' x) || (isInRight && hasEdge' y)
-    hasEdge' _ = False
+hasEdge s t = maybe False (\g -> case foldg1 v o c g of (_, _, r) -> r) . induce1 (`elem` [s, t])
+   where
+     v x                           = (x == s  , x == t  , False                 )
+     o (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt,             xst || yst)
+     c (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt, xs && yt || xst || yst)
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.

@@ -64,7 +64,6 @@ import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
 import Data.List.NonEmpty (NonEmpty (..))
 
-import Control.Applicative (liftA2)
 import Data.Foldable (toList)
 
 import Algebra.Graph.Internal
@@ -383,7 +382,7 @@ hasEdge u v = maybe False hasEdge' . induce1 (`elem` [u,v])
 -- vertexCount            == 'length' . 'vertexList1'
 -- @
 vertexCount :: Ord a => NonEmptyGraph a -> Int
-vertexCount = Set.size . vertexSet 
+vertexCount = Set.size . vertexSet
 
 -- | The number of edges in a graph.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
@@ -680,8 +679,8 @@ induce1 p = foldg1 (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) 
   where
     k _ Nothing a = a
     k _ a Nothing = a
-    k f a b = liftA2 f a b 
-  
+    k f (Just a) (Just b) = Just $ f a b
+
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.
 -- The function does not compute the simplest possible expression,

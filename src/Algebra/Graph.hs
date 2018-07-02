@@ -679,8 +679,6 @@ clique = connects . map vertex
 -- biclique xs      ys      == 'connect' ('vertices' xs) ('vertices' ys)
 -- @
 biclique :: [a] -> [a] -> Graph a
-biclique xs [] = vertices xs
-biclique [] ys = vertices ys
 biclique xs ys = connect (vertices xs) (vertices ys)
 
 -- | The /star/ formed by a centre vertex connected to a list of leaves.
@@ -694,7 +692,6 @@ biclique xs ys = connect (vertices xs) (vertices ys)
 -- star x ys    == 'connect' ('vertex' x) ('vertices' ys)
 -- @
 star :: a -> [a] -> Graph a
-star x [] = vertex x
 star x ys = connect (vertex x) (vertices ys)
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
@@ -709,7 +706,6 @@ star x ys = connect (vertex x) (vertices ys)
 -- starTranspose x ys    == 'transpose' ('star' x ys)
 -- @
 starTranspose :: a -> [a] -> Graph a
-starTranspose x [] = vertex x
 starTranspose x ys = connect (vertices ys) (vertex x)
 
 -- | The /tree graph/ constructed from a given 'Tree.Tree' data structure.
@@ -723,7 +719,6 @@ starTranspose x ys = connect (vertices ys) (vertex x)
 -- tree (Node 1 [Node 2 [], Node 3 [Node 4 [], Node 5 []]]) == 'edges' [(1,2), (1,3), (3,4), (3,5)]
 -- @
 tree :: Tree.Tree a -> Graph a
-tree (Node x []) = vertex x
 tree (Node x f ) = star x (map rootLabel f)
          `overlay` forest (filter (not . null . subForest) f)
 
@@ -903,7 +898,7 @@ transpose (NE g)  = NE $ N.transpose g
 -- 'isSubgraphOf' (induce p x) x == True
 -- @
 induce :: (a -> Bool) -> Graph a -> Graph a
-induce p = foldg Empty (\x -> if p x then Vertex x else Empty) overlay connect
+induce p = foldg EmptyGr (\x -> if p x then Vertex x else EmptyGr) overlay connect
 
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.

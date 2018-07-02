@@ -596,17 +596,20 @@ removeVertex1 x = induce1 (/= x)
 -- removeEdge 1 2 (1 * 1 * 2 * 2)  == 1 * 1 + 2 * 2
 -- 'size' (removeEdge x y z)         <= 3 * 'size' z
 -- @
+{-# SPECIALISE removeEdge :: Int -> Int -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 removeEdge :: Eq a => a -> a -> NonEmptyGraph a -> NonEmptyGraph a
 removeEdge s t = filterContext s (/=s) (/=t)
 
 -- TODO: Export
 -- TODO: Here if @context (==s) g == Just ctx@ then we know for sure that
 -- @induce1 (/=s) g == Just subgraph@. Can we exploit this?
+{-# SPECIALISE filterContext :: Int -> (Int -> Bool) -> (Int -> Bool) -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 filterContext :: Eq a => a -> (a -> Bool) -> (a -> Bool) -> NonEmptyGraph a -> NonEmptyGraph a
 filterContext s i o g = maybe g go $ context (==s) g
   where
     go (Context is os) = let rst = starTranspose s (filter i is) `overlay` star s (filter o os)
                           in maybe rst (overlay rst) $ induce1 (/= s) g
+
 
 -- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a
 -- given 'NonEmptyGraph'. If @y@ already exists, @x@ and @y@ will be merged.
@@ -617,6 +620,7 @@ filterContext s i o g = maybe g go $ context (==s) g
 -- replaceVertex x y ('vertex' x) == 'vertex' y
 -- replaceVertex x y            == 'mergeVertices' (== x) y
 -- @
+--
 replaceVertex :: Eq a => a -> a -> NonEmptyGraph a -> NonEmptyGraph a
 replaceVertex u v = fmap $ \w -> if w == u then v else w
 

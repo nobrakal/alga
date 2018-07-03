@@ -364,11 +364,24 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> NonEmptyGraph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
-hasEdge s t = maybe False (\g -> case foldg1 v o c g of (_, _, r) -> r) . induce1 (`elem` [s, t])
+hasEdge s t = maybe False hasEdge' . induce'
    where
-     v x                           = (x == s  , x == t  , False                 )
-     o (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt,             xst || yst)
-     c (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt, xs && yt || xst || yst)
+     hasEdge' g = case foldg1 v o c g of (_, _, r) -> r
+       where
+         v (x,y)                       = (x       , y       , False                 )
+         o (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt,             xst || yst)
+         c (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt, xs && yt || xst || yst)
+     induce' = foldg1
+                    (\x -> let l = x == s
+                               r = x == t
+                            in if l || r then Just (Vertex (l,r)) else Nothing
+                      )
+                    (k Overlay)
+                    (k Connect)
+       where
+         k _ x     Nothing = x -- Constant folding to get rid of Empty leaves
+         k _ Nothing y     = y
+         k f (Just x) (Just y) = Just $ f x y
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -582,9 +595,9 @@ torus1 xs ys = circuit1 xs `box` circuit1 ys
 -- removeVertex1 1 ('edge' 1 2)          == Just ('vertex' 2)
 -- removeVertex1 x '>=>' removeVertex1 x == removeVertex1 x
 -- @
+{-# SPECIALISE removeVertex1 :: Int -> NonEmptyGraph Int -> Maybe (NonEmptyGraph Int) #-}
 removeVertex1 :: Eq a => a -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
 removeVertex1 x = induce1 (/= x)
-
 
 -- | Remove an edge from a given graph.
 -- Complexity: /O(s)/ time, memory and size.
@@ -609,7 +622,6 @@ filterContext s i o g = maybe g go $ context (==s) g
   where
     go (Context is os) = let rst = starTranspose s (filter i is) `overlay` star s (filter o os)
                           in maybe rst (overlay rst) $ induce1 (/= s) g
-
 
 -- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a
 -- given 'NonEmptyGraph'. If @y@ already exists, @x@ and @y@ will be merged.

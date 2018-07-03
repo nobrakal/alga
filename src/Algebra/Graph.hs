@@ -64,6 +64,7 @@ import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
 import Data.Foldable (toList)
 import Data.Tree
+import Data.Maybe (isNothing)
 
 import Algebra.Graph.Internal
 
@@ -160,27 +161,29 @@ because it is currently implemented by converting graph expressions to canonical
 representations based on adjacency maps.
 -}
 
-data Graph a = EmptyGr
-             | NE (NonEmptyGraph a)
+newtype Graph a = G (Maybe (NonEmptyGraph a))
              deriving (Foldable, Functor, Show, Traversable)
 
 pattern Empty :: Graph a
-pattern Empty = EmptyGr
+pattern Empty = G Nothing
 
 pattern Vertex :: a -> Graph a
-pattern Vertex a = NE (N.Vertex a)
+pattern Vertex a = G (Just (N.Vertex a))
 
 pattern Overlay :: NonEmptyGraph a -> NonEmptyGraph a -> Graph a
-pattern Overlay a b = NE (N.Overlay a b)
+pattern Overlay a b = G (Just (N.Overlay a b))
 
 pattern Connect :: NonEmptyGraph a -> NonEmptyGraph a -> Graph a
-pattern Connect a b = NE (N.Connect a b)
+pattern Connect a b = G (Just (N.Connect a b))
+
+pattern NE :: NonEmptyGraph a -> Graph a
+pattern NE g = G (Just g)
 
 {-# COMPLETE Empty, Vertex, Overlay, Connect #-}
+{-# COMPLETE Empty, NE #-}
 
 instance NFData a => NFData (Graph a) where
-    rnf EmptyGr = ()
-    rnf (NE g)  = rnf g
+    rnf (G g) = rnf g
 
 instance Num a => Num (Graph a) where
     fromInteger = vertex . fromInteger
@@ -210,7 +213,7 @@ instance Applicative Graph where
 
 instance Monad Graph where
   return  = pure
-  g >>= f = foldg Empty f overlay connect g
+  g >>= f = foldg empty f overlay connect g
 
 instance Alternative Graph where
   empty = Empty
@@ -279,8 +282,8 @@ edge x y = Connect (N.Vertex x) (N.Vertex y)
 -- 'edgeCount'   (overlay 1 2) == 0
 -- @
 overlay :: Graph a -> Graph a -> Graph a
-overlay EmptyGr a = a
-overlay a EmptyGr = a
+overlay Empty a = a
+overlay a Empty = a
 overlay (NE a) (NE b) = Overlay a b
 
 -- | /Connect/ two graphs. An alias for the constructor 'Connect'. This is an
@@ -304,8 +307,8 @@ overlay (NE a) (NE b) = Overlay a b
 -- 'edgeCount'   (connect 1 2) == 1
 -- @
 connect :: Graph a -> Graph a -> Graph a
-connect EmptyGr a = a
-connect a EmptyGr = a
+connect Empty a = a
+connect a Empty = a
 connect (NE a) (NE b) = Connect a b
 
 -- | Construct the graph comprising a given list of isolated vertices.
@@ -320,7 +323,7 @@ connect (NE a) (NE b) = Connect a b
 -- 'vertexSet'   . vertices == Set.'Set.fromList'
 -- @
 vertices :: [a] -> Graph a
-vertices = maybe EmptyGr (NE . N.vertices1) . NL.nonEmpty
+vertices = G . fmap N.vertices1 . NL.nonEmpty
 
 -- | Construct the graph from a list of edges.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -332,7 +335,7 @@ vertices = maybe EmptyGr (NE . N.vertices1) . NL.nonEmpty
 -- 'edgeCount' . edges == 'length' . 'Data.List.nub'
 -- @
 edges :: [(a, a)] -> Graph a
-edges = maybe EmptyGr (NE . N.edges1) . NL.nonEmpty
+edges = G . fmap N.edges1 . NL.nonEmpty
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -390,8 +393,7 @@ fromAdjacencyList = overlays . map (uncurry star)
 -- foldg True  (const False) (&&)    (&&)           == 'isEmpty'
 -- @
 foldg :: b -> (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> Graph a -> b
-foldg e _ _ _ EmptyGr = e
-foldg _ v o c (NE g)  = N.foldg1 v o c g
+foldg e v o c (G g) = maybe e (N.foldg1 v o c) g
 
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
@@ -421,9 +423,9 @@ isSubgraphOf x y = overlay x y == y
 -- @
 {-# SPECIALISE (===) :: Graph Int -> Graph Int -> Bool #-}
 (===) :: Eq a => Graph a -> Graph a -> Bool
-EmptyGr === EmptyGr = True
-(NE a)  === (NE b)  = a N.=== b
-_       === _       = False
+Empty  === Empty  = True
+(NE a) === (NE b) = a N.=== b
+_      === _      = False
 
 infix 4 ===
 
@@ -438,8 +440,7 @@ infix 4 ===
 -- isEmpty ('removeEdge' x y $ 'edge' x y) == False
 -- @
 isEmpty :: Graph a -> Bool
-isEmpty EmptyGr = True
-isEmpty _ = False
+isEmpty (G g) = isNothing g
 
 -- | The /size/ of a graph, i.e. the number of leaves of the expression
 -- including 'empty' leaves.
@@ -467,8 +468,7 @@ size = foldg 1 (const 1) (+) (+)
 -- @
 {-# SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
 hasVertex :: Eq a => a -> Graph a -> Bool
-hasVertex _ EmptyGr = False
-hasVertex x  (NE g) = N.hasVertex x g
+hasVertex x (G g) = maybe False (N.hasVertex x) g
 
 -- TODO: Benchmark to see if this implementation is faster than the default
 -- implementation provided by the ToGraph type class.
@@ -484,8 +484,7 @@ hasVertex x  (NE g) = N.hasVertex x g
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 hasEdge :: Ord a => a -> a -> Graph a -> Bool
-hasEdge _ _ EmptyGr = False
-hasEdge u v (NE g) = N.hasEdge u v g
+hasEdge u v (G g)= maybe False (N.hasEdge u v) g
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -561,7 +560,7 @@ edgeList = AM.edgeList . fromGraphAM
 -- vertexSet . 'clique'   == Set.'Set.fromList'
 -- @
 vertexSet :: Ord a => Graph a -> Set.Set a
-vertexSet = foldg Set.empty Set.singleton Set.union Set.union
+vertexSet (G g) = maybe Set.empty N.vertexSet g
 
 -- | The set of vertices of a given graph. Like 'vertexSet' but specialised for
 -- graphs with vertices of type 'Int'.
@@ -574,7 +573,7 @@ vertexSet = foldg Set.empty Set.singleton Set.union Set.union
 -- vertexIntSet . 'clique'   == IntSet.'IntSet.fromList'
 -- @
 vertexIntSet :: Graph Int -> IntSet.IntSet
-vertexIntSet = foldg IntSet.empty IntSet.singleton IntSet.union IntSet.union
+vertexIntSet (G g) = maybe IntSet.empty N.vertexIntSet g
 
 -- | The set of edges of a given graph.
 -- Complexity: /O(s * log(m))/ time and /O(m)/ memory.
@@ -801,7 +800,7 @@ deBruijn len alphabet = skeleton >>= expand
 -- @
 {-# SPECIALISE removeVertex :: Int -> Graph Int -> Graph Int #-}
 removeVertex :: Eq a => a -> Graph a -> Graph a
-removeVertex v = induce (/= v)
+removeVertex v (G g) = G $ g >>= N.removeVertex1 v
 
 -- | Remove an edge from a given graph.
 -- Complexity: /O(s)/ time, memory and size.
@@ -816,8 +815,7 @@ removeVertex v = induce (/= v)
 -- @
 {-# SPECIALISE removeEdge :: Int -> Int -> Graph Int -> Graph Int #-}
 removeEdge :: Eq a => a -> a -> Graph a -> Graph a
-removeEdge _ _ EmptyGr = EmptyGr
-removeEdge s t (NE g) = NE $ N.removeEdge s t g
+removeEdge s t (G g) = G $ N.removeEdge s t <$> g
 
   {-
 -- TODO: Export
@@ -828,7 +826,7 @@ filterContext s i o g = maybe g go $ context (==s) g
   where
     go (Context is os) = induce (/=s) g `overlay` starTranspose s (filter i is)
                                         `overlay` star          s (filter o os)
--}
+ -}
 
 -- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a
 -- given 'Graph'. If @y@ already exists, @x@ and @y@ will be merged.
@@ -842,7 +840,6 @@ filterContext s i o g = maybe g go $ context (==s) g
 {-# SPECIALISE replaceVertex :: Int -> Int -> Graph Int -> Graph Int #-}
 replaceVertex :: Eq a => a -> a -> Graph a -> Graph a
 replaceVertex u v = fmap $ \w -> if w == u then v else w
-
 
 -- | Merge vertices satisfying a given predicate into a given vertex.
 -- Complexity: /O(s)/ time, memory and size, assuming that the predicate takes
@@ -885,8 +882,7 @@ splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
 -- 'edgeList' . transpose  == 'Data.List.sort' . map 'Data.Tuple.swap' . 'edgeList'
 -- @
 transpose :: Graph a -> Graph a
-transpose EmptyGr = EmptyGr
-transpose (NE g)  = NE $ N.transpose g
+transpose (G g) = G $ N.transpose <$> g
 
 -- | Construct the /induced subgraph/ of a given graph by removing the
 -- vertices that do not satisfy a given predicate.
@@ -901,7 +897,7 @@ transpose (NE g)  = NE $ N.transpose g
 -- 'isSubgraphOf' (induce p x) x == True
 -- @
 induce :: (a -> Bool) -> Graph a -> Graph a
-induce p = foldg EmptyGr (\x -> if p x then Vertex x else EmptyGr) overlay connect
+induce p (G g) = G $ g >>= N.induce1 p
 
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.
@@ -921,8 +917,7 @@ induce p = foldg EmptyGr (\x -> if p x then Vertex x else EmptyGr) overlay conne
 -- @
 {-# SPECIALISE simplify :: Graph Int -> Graph Int #-}
 simplify :: Ord a => Graph a -> Graph a
-simplify EmptyGr = EmptyGr
-simplify (NE g)  = NE $ N.simplify g
+simplify (G g) = G $ N.simplify <$> g
 
 -- | Compute the /Cartesian product/ of graphs.
 -- Complexity: /O(s1 * s2)/ time, memory and size, where /s1/ and /s2/ are the
@@ -950,15 +945,7 @@ simplify (NE g)  = NE $ N.simplify g
 -- 'edgeCount'   (box x y) <= 'vertexCount' x * 'edgeCount' y + 'edgeCount' x * 'vertexCount' y
 -- @
 box :: Graph a -> Graph b -> Graph (a, b)
-box EmptyGr _ = Empty
-box _ EmptyGr = Empty
-box (NE x) (NE y) = NE $ N.overlays1 $ xs `append` ys
-  where
-    xs = NL.map (\b -> fmap (,b) x) $ N.toNonEmpty y
-    ys = NL.map (\a -> fmap (a,) y) $ N.toNonEmpty x
-
-append :: NL.NonEmpty a -> NL.NonEmpty a -> NL.NonEmpty a
-append (x NL.:| xs) (y NL.:| ys) = x NL.:| (xs ++ [y] ++ ys)
+box (G x) (G y) = G $ Ap.liftA2 N.box x y
 
 -- | 'Focus' on a specified subgraph.
 focus :: (a -> Bool) -> Graph a -> Focus a

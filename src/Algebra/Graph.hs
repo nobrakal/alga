@@ -282,9 +282,7 @@ edge x y = Connect (N.Vertex x) (N.Vertex y)
 -- 'edgeCount'   (overlay 1 2) == 0
 -- @
 overlay :: Graph a -> Graph a -> Graph a
-overlay Empty a = a
-overlay a Empty = a
-overlay (NE a) (NE b) = Overlay a b
+overlay l@(G a) r@(G b) = maybe r (\x -> maybe l (Overlay x) b) a
 
 -- | /Connect/ two graphs. An alias for the constructor 'Connect'. This is an
 -- associative operation with the identity 'empty', which distributes over
@@ -307,9 +305,7 @@ overlay (NE a) (NE b) = Overlay a b
 -- 'edgeCount'   (connect 1 2) == 1
 -- @
 connect :: Graph a -> Graph a -> Graph a
-connect Empty a = a
-connect a Empty = a
-connect (NE a) (NE b) = Connect a b
+connect l@(G a) r@(G b) = maybe r (\x -> maybe l (Connect x) b) a
 
 -- | Construct the graph comprising a given list of isolated vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -868,7 +864,6 @@ mergeVertices p v = fmap $ \w -> if p w then v else w
 {-# SPECIALISE splitVertex :: Int -> [Int] -> Graph Int -> Graph Int #-}
 splitVertex :: Eq a => a -> [a] -> Graph a -> Graph a
 splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
-
 
 -- | Transpose a given graph.
 -- Complexity: /O(s)/ time, memory and size.

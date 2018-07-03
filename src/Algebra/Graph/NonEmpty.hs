@@ -614,8 +614,6 @@ removeEdge :: Eq a => a -> a -> NonEmptyGraph a -> NonEmptyGraph a
 removeEdge s t = filterContext s (/=s) (/=t)
 
 -- TODO: Export
--- TODO: Here if @context (==s) g == Just ctx@ then we know for sure that
--- @induce1 (/=s) g == Just subgraph@. Can we exploit this?
 {-# SPECIALISE filterContext :: Int -> (Int -> Bool) -> (Int -> Bool) -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 filterContext :: Eq a => a -> (a -> Bool) -> (a -> Bool) -> NonEmptyGraph a -> NonEmptyGraph a
 filterContext s i o g = maybe g go $ context (==s) g

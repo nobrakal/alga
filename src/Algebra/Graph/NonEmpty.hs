@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable, BangPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.NonEmpty
@@ -298,6 +298,18 @@ foldg1 v o c = go
     go (Vertex  x  ) = v x
     go (Overlay x y) = o (go x) (go y)
     go (Connect x y) = c (go x) (go y)
+
+-- Strict version
+foldg1' :: (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> NonEmptyGraph a -> b
+foldg1' v o c = go
+  where
+    go (Vertex  x  ) = v x
+    go (Overlay x y) = let !l = go x
+                           !r = go y
+                        in o l r
+    go (Connect x y) = let !l = go x
+                           !r = go y
+                        in c l r
 
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
@@ -686,7 +698,7 @@ transpose = foldg1 vertex overlay (flip connect)
 -- induce1 p '>=>' induce1 q == induce1 (\\x -> p x && q x)
 -- @
 induce1 :: (a -> Bool) -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
-induce1 p = foldg1 (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) (k Connect)
+induce1 p = foldg1' (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) (k Connect)
   where
     k _ Nothing a = a
     k _ a Nothing = a

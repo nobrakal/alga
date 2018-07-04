@@ -319,7 +319,8 @@ connect l@(G a) r@(G b) = maybe r (\x -> maybe l (Connect x) b) a
 -- 'vertexSet'   . vertices == Set.'Set.fromList'
 -- @
 vertices :: [a] -> Graph a
-vertices = G . fmap N.vertices1 . NL.nonEmpty
+vertices [] = Empty
+vertices (x:xs) = G $ Just $ foldr (\v y -> N.Overlay (N.Vertex v) y) (N.Vertex x) xs
 
 -- | Construct the graph from a list of edges.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -331,7 +332,8 @@ vertices = G . fmap N.vertices1 . NL.nonEmpty
 -- 'edgeCount' . edges == 'length' . 'Data.List.nub'
 -- @
 edges :: [(a, a)] -> Graph a
-edges = G . fmap N.edges1 . NL.nonEmpty
+edges [] = Empty
+edges (x:xs) = G $ Just $ foldr (\e y -> N.Overlay (uncurry N.edge e) y) (uncurry N.edge x) xs
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

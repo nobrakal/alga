@@ -32,8 +32,8 @@ module Algebra.Graph.NonEmpty (
     isSubgraphOf, (===),
 
     -- * Graph properties
-    size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList1, edgeList,
-    vertexSet, vertexIntSet, edgeSet,
+    size, hasVertex, hasEdge, hasSelfLoop,vertexCount, edgeCount, vertexList1,
+    edgeList, vertexSet, vertexIntSet, edgeSet,
 
     -- * Standard families of graphs
     path1, circuit1, clique1, biclique1, star, starTranspose, tree, mesh1, torus1,
@@ -394,6 +394,22 @@ hasEdge s t = maybe False hasEdge' . induce'
          k _ x     Nothing = x -- Constant folding to get rid of Empty leaves
          k _ Nothing y     = y
          k f (Just x) (Just y) = Just $ f x y
+
+-- | Check if a graph contains a given loop.
+-- Complexity: /O(s)/ time.
+--
+-- @
+-- hasSelfLoop x ('vertex' y)       == False
+-- hasSelfLoop x ('edge' x y)       == True
+-- hasSelfLoop x                  == 'hasEdge' x x
+-- hasSelfLoop x . 'removeEdge' x x == const False
+-- @
+hasSelfLoop :: Eq a => a -> NonEmptyGraph a -> Bool
+hasSelfLoop l = maybe False hasSelfLoop' . induce1 (==l)
+  where
+    hasSelfLoop' (Overlay x y) = hasSelfLoop' x || hasSelfLoop' y
+    hasSelfLoop' Connect{} = True
+    hasSelfLoop' _ = False
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.

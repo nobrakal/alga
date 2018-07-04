@@ -35,8 +35,8 @@ module Algebra.Graph (
     isSubgraphOf, (===),
 
     -- * Graph properties
-    isEmpty, size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList,
-    edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
+    isEmpty, size, hasVertex, hasEdge, hasSelfLoop, vertexCount, edgeCount,
+    vertexList, edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
 
     -- * Standard families of graphs
     path, circuit, clique, biclique, star, starTranspose, tree, forest, mesh,
@@ -479,8 +479,12 @@ hasVertex x (G g) = maybe False (N.hasVertex x) g
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
-hasEdge :: Ord a => a -> a -> Graph a -> Bool
+hasEdge :: Eq a => a -> a -> Graph a -> Bool
 hasEdge u v (G g)= maybe False (N.hasEdge u v) g
+
+{-# SPECIALISE hasSelfLoop :: Int -> Graph Int -> Bool #-}
+hasSelfLoop :: Eq a => a -> Graph a -> Bool
+hasSelfLoop u (G g)= maybe False (N.hasSelfLoop u) g
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.

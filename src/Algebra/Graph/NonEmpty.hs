@@ -376,24 +376,30 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> NonEmptyGraph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
-hasEdge s t = maybe False hasEdge' . induce'
+hasEdge s t =
+  if s == t -- We test if we search for a loop
+     then hasSelfLoop s
+     else maybe False hasEdge' . induce' -- if not, we convert the supplied @Graph a@ to a @Graph Bool@
+                                         -- where @s@ is @Vertex True@, @v@ is @Vertex False@ and other
+                                         -- vertices are removed.
+                                         -- Then we check if there is an edge from @True@ to @False@
    where
      hasEdge' g = case foldg1 v o c g of (_, _, r) -> r
        where
-         v (x,y)                       = (x       , y       , False                 )
+         v x                           = (x       , not x   , False                 )
          o (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt,             xst || yst)
          c (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt, xs && yt || xst || yst)
-     induce' = foldg1
-                    (\x -> let l = x == s
-                               r = x == t
-                            in if l || r then Just (Vertex (l,r)) else Nothing
-                      )
-                    (k Overlay)
-                    (k Connect)
+     induce' = foldg1 (\x -> if x == s then Just (Vertex True)
+                                      else if x == t
+                                              then Just (Vertex False)
+                                              else Nothing)
+                     (k Overlay)
+                     (k Connect)
        where
-         k _ x     Nothing = x -- Constant folding to get rid of Empty leaves
-         k _ Nothing y     = y
+         k _ x     Nothing     = x -- Constant folding to get rid of Empty leaves
+         k _ Nothing y         = y
          k f (Just x) (Just y) = Just $ f x y
+
 
 -- | Check if a graph contains a given loop.
 -- Complexity: /O(s)/ time.

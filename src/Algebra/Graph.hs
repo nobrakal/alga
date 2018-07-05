@@ -405,7 +405,9 @@ foldg e v o c (G g) = maybe e (N.foldg1 v o c) g
 -- @
 {-# SPECIALISE isSubgraphOf :: Graph Int -> Graph Int -> Bool #-}
 isSubgraphOf :: Ord a => Graph a -> Graph a -> Bool
-isSubgraphOf x y = overlay x y == y
+isSubgraphOf Empty _       = True
+isSubgraphOf _      Empty  = False
+isSubgraphOf (NE x) (NE y) = N.isSubgraphOf x y
 
 -- | Structural equality on graph expressions.
 -- Complexity: /O(s)/ time.

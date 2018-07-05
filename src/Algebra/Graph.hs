@@ -264,7 +264,7 @@ vertex = Vertex
 -- 'vertexCount' (edge 1 2) == 2
 -- @
 edge :: a -> a -> Graph a
-edge x y = Connect (N.Vertex x) (N.Vertex y)
+edge x y = G $ Just $ N.edge x y
 
 -- | /Overlay/ two graphs. An alias for the constructor 'Overlay'. This is a
 -- commutative, associative and idempotent operation with the identity 'empty'.

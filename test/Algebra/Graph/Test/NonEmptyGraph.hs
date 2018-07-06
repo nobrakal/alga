@@ -26,7 +26,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Tree
 import Data.Tuple
 
-import Algebra.Graph.NonEmpty
+import Algebra.Graph.NonEmpty hiding (Node)
 import Algebra.Graph.Test hiding (axioms, theorems)
 
 import qualified Data.List.NonEmpty as NonEmpty

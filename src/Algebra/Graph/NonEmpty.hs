@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable, BangPatterns #-}
+{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable, BangPatterns, PatternSynonyms, ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.NonEmpty
@@ -20,6 +20,8 @@
 module Algebra.Graph.NonEmpty (
     -- * Algebraic data type for non-empty graphs
     NonEmptyGraph (..),
+
+    pattern Vertex, pattern Overlay, pattern Connect,
 
     -- * Basic graph construction primitives
     vertex, edge, overlay, connect, vertices1, edges1, overlays1,
@@ -62,7 +64,7 @@ import Data.Set    (Set)
 
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 
 import Data.Foldable (toList)
 
@@ -139,15 +141,28 @@ Converting a 'NonEmptyGraph' to the corresponding 'AM.AdjacencyMap' takes
 the graph equality test, because it is currently implemented by converting graph
 expressions to canonical representations based on adjacency maps.
 -}
-data NonEmptyGraph a = Vertex a
-                     | Overlay (NonEmptyGraph a) (NonEmptyGraph a)
-                     | Connect (NonEmptyGraph a) (NonEmptyGraph a)
+
+data Operator = OverlayG | ConnectG deriving (Show,Eq)
+
+data NonEmptyGraph a = Leaf a
+                     | Node Operator (NoonEmpty (NonEmptyGraph a))
                      deriving (Foldable, Functor, Show, Traversable)
 
+data NoonEmpty a = NoonEmpty a a [a] deriving (Foldable, Functor, Show, Eq, Traversable)
+
+reverseNoonEmpty :: NoonEmpty a -> NoonEmpty a
+reverseNoonEmpty (NoonEmpty a b xs) =
+  case  reverse xs of
+    [] -> NoonEmpty b a []
+    [x] -> NoonEmpty x b [a]
+    (u:v:ys) -> NoonEmpty u v $ ys ++ [b,a]
+
+instance NFData a => NFData (NoonEmpty a) where
+    rnf (NoonEmpty a b xs) = rnf a `seq` rnf b `seq` rnf xs
+
 instance NFData a => NFData (NonEmptyGraph a) where
-    rnf (Vertex  x  ) = rnf x
-    rnf (Overlay x y) = rnf x `seq` rnf y
-    rnf (Connect x y) = rnf x `seq` rnf y
+    rnf (Leaf  x  ) = rnf x
+    rnf (Node _ xs) = rnf xs
 
 instance Num a => Num (NonEmptyGraph a) where
     fromInteger = Vertex . fromInteger
@@ -163,13 +178,33 @@ instance Ord a => Eq (NonEmptyGraph a) where
 adjacencyMap :: Ord a => NonEmptyGraph a -> Map a (Set a)
 adjacencyMap = AM.adjacencyMap . foldg1 AM.vertex AM.overlay AM.connect
 
+pattern Vertex :: a -> NonEmptyGraph a
+pattern Vertex a = Leaf a
+
+pattern Overlay :: NonEmptyGraph a -> NonEmptyGraph a -> NonEmptyGraph a
+pattern Overlay a b <- (view -> Node OverlayG (NoonEmpty a b [])) where
+  Overlay a b = Node OverlayG $ NoonEmpty a b []
+
+pattern Connect :: NonEmptyGraph a -> NonEmptyGraph a -> NonEmptyGraph a
+pattern Connect a b <- (view -> Node ConnectG (NoonEmpty a b [])) where
+  Connect a b = Node ConnectG $ NoonEmpty a b []
+
+{-# COMPLETE Vertex, Overlay, Connect #-}
+
+view :: NonEmptyGraph a -> NonEmptyGraph a
+view (Node c (NoonEmpty a b xs)) =
+  case xs of
+    [] -> Node c (NoonEmpty a b [])
+    (y:ys) -> Node c $ NoonEmpty a (Node c (NoonEmpty b y ys)) []
+view g = g
+
 instance Applicative NonEmptyGraph where
-    pure  = Vertex
-    (<*>) = ap
+  pure  = Leaf
+  (<*>) = ap
 
 instance Monad NonEmptyGraph where
-    return  = pure
-    g >>= f = foldg1 f Overlay Connect g
+  return  = pure
+  g >>= f = foldg1 f Overlay Connect g
 
 -- | Construct the graph comprising /a single isolated vertex/. An alias for the
 -- constructor 'Vertex'.
@@ -182,7 +217,7 @@ instance Monad NonEmptyGraph where
 -- 'size'        (vertex x) == 1
 -- @
 vertex :: a -> NonEmptyGraph a
-vertex = Vertex
+vertex = Leaf
 
 -- | Construct the graph comprising /a single edge/.
 -- Complexity: /O(1)/ time, memory and size.
@@ -247,7 +282,7 @@ connect = Connect
 -- 'vertexSet'   . vertices1 == Set.'Set.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 vertices1 :: NonEmpty a -> NonEmptyGraph a
-vertices1 (x :| xs) = foldr (Overlay . vertex) (vertex x) xs
+vertices1 (x :| xs) = maybe (Leaf x) (\(y :| ys) -> Node OverlayG $ vertex <$> NoonEmpty x y ys) $ nonEmpty xs
 
 -- | Construct the graph from a list of edges.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -258,7 +293,7 @@ vertices1 (x :| xs) = foldr (Overlay . vertex) (vertex x) xs
 -- 'edgeCount' . edges1   == 'Data.List.NonEmpty.length' . 'Data.List.NonEmpty.nub'
 -- @
 edges1 :: NonEmpty (a, a) -> NonEmptyGraph a
-edges1 (x :| xs) = foldr (Overlay . uncurry edge) (uncurry edge x) xs
+edges1 (x :| xs) = maybe (uncurry edge x) (\(y :| ys) -> Node OverlayG $ uncurry edge <$> NoonEmpty x y ys) $ nonEmpty xs
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -269,7 +304,8 @@ edges1 (x :| xs) = foldr (Overlay . uncurry edge) (uncurry edge x) xs
 -- overlays1 (x ':|' [y]) == 'overlay' x y
 -- @
 overlays1 :: NonEmpty (NonEmptyGraph a) -> NonEmptyGraph a
-overlays1 = foldr1 overlay
+overlays1 (x :| []) = x
+overlays1 (x :| (y:ys)) = Node OverlayG $ NoonEmpty x y ys
 
 -- | Connect a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -280,7 +316,8 @@ overlays1 = foldr1 overlay
 -- connects1 (x ':|' [y]) == 'connect' x y
 -- @
 connects1 :: NonEmpty (NonEmptyGraph a) -> NonEmptyGraph a
-connects1 = foldr1 connect
+connects1 (x :| []) = x
+connects1 (x :| (y:ys)) = Node ConnectG $ NoonEmpty x y ys
 
 -- | Generalised graph folding: recursively collapse a 'NonEmptyGraph' by
 -- applying the provided functions to the leaves and internal nodes of the
@@ -310,6 +347,25 @@ foldg1' v o c = go
     go (Connect x y) = let !l = go x
                            !r = go y
                         in c l r
+
+foldgDistinct :: (a -> b) -> (NoonEmpty b -> b) -> (NoonEmpty b -> b) -> NonEmptyGraph a -> b
+foldgDistinct v o c = go
+  where
+    go (Leaf x) = v x
+    go (Node OverlayG xs) = o $ fmap go xs
+    go (Node ConnectG xs) = c $ fmap go xs
+
+foldgIndistinct :: (a -> b) -> (NoonEmpty b -> b) -> NonEmptyGraph a -> b
+foldgIndistinct v o = go
+  where
+    go (Leaf x) = v x
+    go (Node _ xs) = o $ fmap go xs
+
+foldgIndistinctWithOp :: (a -> b) -> (Operator -> NoonEmpty b -> b) -> NonEmptyGraph a -> b
+foldgIndistinctWithOp v o = go
+  where
+    go (Leaf x) = v x
+    go (Node c xs) = o c $ fmap go xs
 
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
@@ -353,7 +409,7 @@ infix 4 ===
 -- size x             >= 'vertexCount' x
 -- @
 size :: NonEmptyGraph a -> Int
-size = foldg1 (const 1) (+) (+)
+size = foldgIndistinct (const 1) sum
 
 -- | Check if a graph contains a given vertex. A convenient alias for `elem`.
 -- Complexity: /O(s)/ time.
@@ -364,7 +420,7 @@ size = foldg1 (const 1) (+) (+)
 -- @
 {-# SPECIALISE hasVertex :: Int -> NonEmptyGraph Int -> Bool #-}
 hasVertex :: Eq a => a -> NonEmptyGraph a -> Bool
-hasVertex v = foldg1 (==v) (||) (||)
+hasVertex v = foldgIndistinct (==v) or
 
 -- | Check if a graph contains a given edge.
 -- Complexity: /O(s)/ time.
@@ -415,8 +471,10 @@ hasEdge s t =
 hasSelfLoop :: Eq a => a -> NonEmptyGraph a -> Bool
 hasSelfLoop l = maybe False hasSelfLoop' . induce1 (==l)
   where
-    hasSelfLoop' (Overlay x y) = hasSelfLoop' x || hasSelfLoop' y
-    hasSelfLoop' Connect{} = True
+    hasSelfLoop' (Node c xs) =
+      case c of
+        OverlayG -> or $ fmap hasSelfLoop' xs
+        ConnectG -> True
     hasSelfLoop' _ = False
 
 -- | The number of vertices in a graph.
@@ -475,7 +533,7 @@ edgeList = AM.edgeList . foldg1 AM.vertex AM.overlay AM.connect
 -- vertexSet . 'clique1'   == Set.'Set.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 vertexSet :: Ord a => NonEmptyGraph a -> Set.Set a
-vertexSet = foldg1 Set.singleton Set.union Set.union
+vertexSet = foldgIndistinct Set.singleton (Set.unions . toList)
 
 -- | The set of vertices of a given graph. Like 'vertexSet' but specialised for
 -- graphs with vertices of type 'Int'.
@@ -487,7 +545,7 @@ vertexSet = foldg1 Set.singleton Set.union Set.union
 -- vertexIntSet . 'clique1'   == IntSet.'IntSet.fromList' . 'Data.List.NonEmpty.toList'
 -- @
 vertexIntSet :: NonEmptyGraph Int -> IntSet.IntSet
-vertexIntSet = foldg1 IntSet.singleton IntSet.union IntSet.union
+vertexIntSet = foldgIndistinct IntSet.singleton (IntSet.unions . toList)
 
 -- | The set of edges of a given graph.
 -- Complexity: /O(s * log(m))/ time and /O(m)/ memory.
@@ -707,7 +765,7 @@ splitVertex1 v us g = g >>= \w -> if w == v then vertices1 us else vertex w
 -- 'edgeList' . transpose  == 'Data.List.sort' . map 'Data.Tuple.swap' . 'edgeList'
 -- @
 transpose :: NonEmptyGraph a -> NonEmptyGraph a
-transpose = foldg1 vertex overlay (flip connect)
+transpose = foldgDistinct vertex (Node OverlayG) (Node ConnectG . reverseNoonEmpty)
 
 -- | Construct the /induced subgraph/ of a given graph by removing the
 -- vertices that do not satisfy a given predicate. Returns @Nothing@ if the
@@ -722,7 +780,7 @@ transpose = foldg1 vertex overlay (flip connect)
 -- induce1 p '>=>' induce1 q == induce1 (\\x -> p x && q x)
 -- @
 induce1 :: (a -> Bool) -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
-induce1 p = foldg1' (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) (k Connect)
+induce1 p = foldg1' (\x -> if p x then Just (Vertex x) else Nothing) (k overlay) (k connect)
   where
     k _ Nothing a = a
     k _ a Nothing = a

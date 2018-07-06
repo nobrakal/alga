@@ -321,6 +321,7 @@ foldg1' v o c = go
 -- isSubgraphOf ('overlay' x y) ('connect' x y) == True
 -- isSubgraphOf ('path1' xs)    ('circuit1' xs) == True
 -- @
+{-# SPECIALISE isSubgraphOf :: NonEmptyGraph Int -> NonEmptyGraph Int -> Bool #-}
 isSubgraphOf :: Ord a => NonEmptyGraph a -> NonEmptyGraph a -> Bool
 isSubgraphOf x y = overlay x y == y
 
@@ -410,6 +411,7 @@ hasEdge s t =
 -- hasSelfLoop x                  == 'hasEdge' x x
 -- hasSelfLoop x . 'removeEdge' x x == const False
 -- @
+{-# SPECIALISE hasSelfLoop :: Int -> NonEmptyGraph Int -> Bool #-}
 hasSelfLoop :: Eq a => a -> NonEmptyGraph a -> Bool
 hasSelfLoop l = maybe False hasSelfLoop' . induce1 (==l)
   where

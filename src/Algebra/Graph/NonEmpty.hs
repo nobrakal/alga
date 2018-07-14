@@ -427,8 +427,14 @@ hasSelfLoop l = maybe False hasSelfLoop' . induce1 (==l)
 -- vertexCount x          >= 1
 -- vertexCount            == 'length' . 'vertexList1'
 -- @
+{-# RULES "vertexCount/Int" vertexCount = vertexIntCount #-}
+{-# INLINE[1] vertexCount #-}
 vertexCount :: Ord a => NonEmptyGraph a -> Int
 vertexCount = Set.size . vertexSet
+
+-- | Like 'vertexCount' but specialised for NonEmptyGraph with vertices of type 'Int'.
+vertexIntCount :: NonEmptyGraph Int -> Int
+vertexIntCount = IntSet.size . vertexIntSet
 
 -- | The number of edges in a graph.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
@@ -439,6 +445,7 @@ vertexCount = Set.size . vertexSet
 -- edgeCount ('edge' x y) == 1
 -- edgeCount            == 'length' . 'edgeList'
 -- @
+{-# SPECIALISE edgeCount :: NonEmptyGraph Int -> Int #-}
 edgeCount :: Ord a => NonEmptyGraph a -> Int
 edgeCount = length . edgeList
 
@@ -449,8 +456,13 @@ edgeCount = length . edgeList
 -- vertexList1 ('vertex' x)  == x ':|' []
 -- vertexList1 . 'vertices1' == 'Data.List.NonEmpty.nub' . 'Data.List.NonEmpty.sort'
 -- @
+{-# RULES "vertexList1/Int" vertexList1 = vertexIntList1 #-}
+{-# INLINE[1] vertexList1 #-}
 vertexList1 :: Ord a => NonEmptyGraph a -> NonEmpty a
 vertexList1 = NonEmpty.fromList . Set.toAscList . vertexSet
+
+vertexIntList1 :: NonEmptyGraph Int -> NonEmpty Int
+vertexIntList1 = NonEmpty.fromList . IntSet.toAscList . vertexIntSet
 
 -- | The sorted list of edges of a graph.
 -- Complexity: /O(s + m * log(m))/ time and /O(m)/ memory. Note that the number of
@@ -463,8 +475,14 @@ vertexList1 = NonEmpty.fromList . Set.toAscList . vertexSet
 -- edgeList . 'edges1'       == 'Data.List.nub' . 'Data.List.sort' . 'Data.List.NonEmpty.toList'
 -- edgeList . 'transpose'    == 'Data.List.sort' . map 'Data.Tuple.swap' . edgeList
 -- @
+{-# RULES "edgeList/Int" edgeList = edgeIntList #-}
+{-# INLINE[1] edgeList #-}
 edgeList :: Ord a => NonEmptyGraph a -> [(a, a)]
 edgeList = AM.edgeList . foldg1 AM.vertex AM.overlay AM.connect
+
+-- | Specialized edgeList for NonEmptyGraph Int
+edgeIntList :: NonEmptyGraph Int -> [(Int,Int)]
+edgeIntList = AIM.edgeList . foldg1 AIM.vertex AIM.overlay AIM.connect
 
 -- | The set of vertices of a given graph.
 -- Complexity: /O(s * log(n))/ time and /O(n)/ memory.
@@ -497,8 +515,13 @@ vertexIntSet = foldg1 IntSet.singleton IntSet.union IntSet.union
 -- edgeSet ('edge' x y) == Set.'Set.singleton' (x,y)
 -- edgeSet . 'edges1'   == Set.'Set.fromList' . 'Data.List.NonEmpty.toList'
 -- @
+{-# RULES "edgeSet/Int" edgeSet = edgeIntSet #-}
+{-# INLINE[1] edgeSet #-}
 edgeSet :: Ord a => NonEmptyGraph a -> Set.Set (a, a)
 edgeSet = AM.edgeSet . foldg1 AM.vertex AM.overlay AM.connect
+
+edgeIntSet :: NonEmptyGraph Int -> Set.Set (Int,Int)
+edgeIntSet = AIM.edgeSet . foldg1 AIM.vertex AIM.overlay AIM.connect
 
 -- | The /path/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the

@@ -484,9 +484,20 @@ hasVertex x (G g) = maybe False (N.hasVertex x) g
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
 hasEdge u v (G g)= maybe False (N.hasEdge u v) g
 
+-- | Check if a graph contains a given loop.
+-- Complexity: /O(s)/ time.
+--
+-- @
+-- hasSelfLoop x 'empty'            == False
+-- hasSelfLoop x ('vertex' z)       == False
+-- hasSelfLoop x ('edge' x x)       == True
+-- hasSelfLoop x                  == 'hasEdge' x x
+-- hasSelfLoop x . 'removeEdge' x x == const False
+-- hasSelfLoop x                  == 'elem' (x,x) . 'edgeList'
+-- @
 {-# SPECIALISE hasSelfLoop :: Int -> Graph Int -> Bool #-}
 hasSelfLoop :: Eq a => a -> Graph a -> Bool
-hasSelfLoop u (G g)= maybe False (N.hasSelfLoop u) g
+hasSelfLoop v (G g)= maybe False (N.hasSelfLoop v) g
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -548,9 +559,14 @@ vertexIntList = IntSet.toList . vertexIntSet
 -- edgeList . 'edges'        == 'Data.List.nub' . 'Data.List.sort'
 -- edgeList . 'transpose'    == 'Data.List.sort' . map 'Data.Tuple.swap' . edgeList
 -- @
-{-# SPECIALISE edgeList :: Graph Int -> [(Int,Int)] #-}
 edgeList :: Ord a => Graph a -> [(a, a)]
 edgeList = AM.edgeList . fromGraphAM
+{-# INLINE[1] edgeList #-}
+{-# RULES "edgeList/Int" edgeList = edgeIntList #-}
+
+-- | Like 'edgeList' but specialised for graphs with vertices of type 'Int'.
+edgeIntList :: Graph Int -> [(Int,Int)]
+edgeIntList = AIM.edgeList . fromGraphAIM
 
 -- | The set of vertices of a given graph.
 -- Complexity: /O(s * log(n))/ time and /O(n)/ memory.
@@ -586,9 +602,14 @@ vertexIntSet (G g) = maybe IntSet.empty N.vertexIntSet g
 -- edgeSet ('edge' x y) == Set.'Set.singleton' (x,y)
 -- edgeSet . 'edges'    == Set.'Set.fromList'
 -- @
-{-# SPECIALISE edgeSet :: Graph Int -> Set.Set (Int,Int) #-}
 edgeSet :: Ord a => Graph a -> Set.Set (a, a)
 edgeSet = AM.edgeSet . fromGraphAM
+{-# INLINE[1] edgeSet #-}
+{-# RULES "edgeSet/Int" edgeSet = edgeIntSet #-}
+
+-- | Like 'edgeIntSet' but specialised for graphs with vertices of type 'Int'.
+edgeIntSet :: Graph Int -> Set.Set (Int,Int)
+edgeIntSet = AIM.edgeSet . fromGraphAIM
 
 -- | The sorted /adjacency list/ of a graph.
 -- Complexity: /O(n + m)/ time and /O(m)/ memory.
@@ -622,7 +643,11 @@ fromGraphAM = foldg AM.empty AM.vertex AM.overlay AM.connect
 
 -- | Like 'adjacencyMap' but specialised for graphs with vertices of type 'Int'.
 adjacencyIntMap :: Graph Int -> IntMap IntSet
-adjacencyIntMap = AIM.adjacencyIntMap . foldg AIM.empty AIM.vertex AIM.overlay AIM.connect
+adjacencyIntMap = AIM.adjacencyIntMap . fromGraphAIM
+
+-- | Like 'fromGraphAM' but specialised for graphs with vertices of type 'Int'.
+fromGraphAIM :: Graph Int -> AIM.AdjacencyIntMap
+fromGraphAIM = foldg AIM.empty AIM.vertex AIM.overlay AIM.connect
 
 -- | The /path/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the

@@ -32,7 +32,7 @@ module Algebra.Graph.NonEmpty (
     isSubgraphOf, (===),
 
     -- * Graph properties
-    size, hasVertex, hasEdge, hasSelfLoop,vertexCount, edgeCount, vertexList1,
+    size, hasVertex, hasEdge, hasSelfLoop, vertexCount, edgeCount, vertexList1,
     edgeList, vertexSet, vertexIntSet, edgeSet,
 
     -- * Standard families of graphs
@@ -45,7 +45,9 @@ module Algebra.Graph.NonEmpty (
     -- * Graph composition
     box,
 
-    toNonEmpty
+    toNonEmpty,
+
+    adjacencyMap, adjacencyIntMap
   ) where
 
 import Prelude ()
@@ -158,10 +160,18 @@ instance Num a => Num (NonEmptyGraph a) where
     negate      = id
 
 instance Ord a => Eq (NonEmptyGraph a) where
-    x == y = adjacencyMap x == adjacencyMap y
+    (==) = equals
 
-adjacencyMap :: Ord a => NonEmptyGraph a -> Map a (Set a)
-adjacencyMap = AM.adjacencyMap . foldg1 AM.vertex AM.overlay AM.connect
+-- TODO: Find a more efficient equality check.
+-- | Compare two graphs by converting them to their adjacency maps.
+{-# NOINLINE [1] equals #-}
+{-# RULES "equalsInt" equals = equalsInt #-}
+equals :: Ord a => NonEmptyGraph a -> NonEmptyGraph a -> Bool
+equals x y = adjacencyMap x == adjacencyMap y
+
+-- | Like 'equals' but specialised for graphs with vertices of type 'Int'.
+equalsInt :: NonEmptyGraph Int -> NonEmptyGraph Int -> Bool
+equalsInt x y = adjacencyIntMap x == adjacencyIntMap y
 
 instance Applicative NonEmptyGraph where
     pure  = Vertex
@@ -258,7 +268,9 @@ vertices1 (x :| xs) = foldr (Overlay . vertex) (vertex x) xs
 -- 'edgeCount' . edges1   == 'Data.List.NonEmpty.length' . 'Data.List.NonEmpty.nub'
 -- @
 edges1 :: NonEmpty (a, a) -> NonEmptyGraph a
-edges1 (x :| xs) = foldr (Overlay . uncurry edge) (uncurry edge x) xs
+edges1 (x :| xs) = foldr (Overlay . edgeTuple) (edgeTuple x) xs
+  where
+    edgeTuple = uncurry edge
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -299,18 +311,6 @@ foldg1 v o c = go
     go (Overlay x y) = o (go x) (go y)
     go (Connect x y) = c (go x) (go y)
 
--- Strict version
-foldg1' :: (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> NonEmptyGraph a -> b
-foldg1' v o c = go
-  where
-    go (Vertex  x  ) = v x
-    go (Overlay x y) = let !l = go x
-                           !r = go y
-                        in o l r
-    go (Connect x y) = let !l = go x
-                           !r = go y
-                        in c l r
-
 -- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the
 -- first graph is a /subgraph/ of the second.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
@@ -334,6 +334,7 @@ isSubgraphOf x y = overlay x y == y
 -- 1 + 2 === 2 + 1 == False
 -- x + y === x * y == False
 -- @
+{-# SPECIALISE (===) :: NonEmptyGraph Int -> NonEmptyGraph Int -> Bool #-}
 (===) :: Eq a => NonEmptyGraph a -> NonEmptyGraph a -> Bool
 (Vertex  x1   ) === (Vertex  x2   ) = x1 ==  x2
 (Overlay x1 y1) === (Overlay x2 y2) = x1 === x2 && y1 === y2
@@ -401,7 +402,6 @@ hasEdge s t =
          k _ Nothing y         = y
          k f (Just x) (Just y) = Just $ f x y
 
-
 -- | Check if a graph contains a given loop.
 -- Complexity: /O(s)/ time.
 --
@@ -461,6 +461,7 @@ edgeCount = length . edgeList
 vertexList1 :: Ord a => NonEmptyGraph a -> NonEmpty a
 vertexList1 = NonEmpty.fromList . Set.toAscList . vertexSet
 
+-- | Like 'vertexList1' but specialised for NonEmptyGraph with vertices of type 'Int'.
 vertexIntList1 :: NonEmptyGraph Int -> NonEmpty Int
 vertexIntList1 = NonEmpty.fromList . IntSet.toAscList . vertexIntSet
 
@@ -478,11 +479,11 @@ vertexIntList1 = NonEmpty.fromList . IntSet.toAscList . vertexIntSet
 {-# RULES "edgeList/Int" edgeList = edgeIntList #-}
 {-# INLINE[1] edgeList #-}
 edgeList :: Ord a => NonEmptyGraph a -> [(a, a)]
-edgeList = AM.edgeList . foldg1 AM.vertex AM.overlay AM.connect
+edgeList = AM.edgeList . fromGraphAM
 
--- | Specialized edgeList for NonEmptyGraph Int
+-- | Like 'edgeList' but specialised for NonEmptyGraph with vertices of type 'Int'.
 edgeIntList :: NonEmptyGraph Int -> [(Int,Int)]
-edgeIntList = AIM.edgeList . foldg1 AIM.vertex AIM.overlay AIM.connect
+edgeIntList = AIM.edgeList . fromGraphAIM
 
 -- | The set of vertices of a given graph.
 -- Complexity: /O(s * log(n))/ time and /O(n)/ memory.
@@ -518,10 +519,10 @@ vertexIntSet = foldg1 IntSet.singleton IntSet.union IntSet.union
 {-# RULES "edgeSet/Int" edgeSet = edgeIntSet #-}
 {-# INLINE[1] edgeSet #-}
 edgeSet :: Ord a => NonEmptyGraph a -> Set.Set (a, a)
-edgeSet = AM.edgeSet . foldg1 AM.vertex AM.overlay AM.connect
+edgeSet = AM.edgeSet . fromGraphAM
 
 edgeIntSet :: NonEmptyGraph Int -> Set.Set (Int,Int)
-edgeIntSet = AIM.edgeSet . foldg1 AIM.vertex AIM.overlay AIM.connect
+edgeIntSet = AIM.edgeSet . fromGraphAIM
 
 -- | The /path/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -689,7 +690,7 @@ filterContext s i o g = maybe g go $ context (==s) g
 -- replaceVertex x y ('vertex' x) == 'vertex' y
 -- replaceVertex x y            == 'mergeVertices' (== x) y
 -- @
---
+{-# SPECIALISE replaceVertex :: Int -> Int -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 replaceVertex :: Eq a => a -> a -> NonEmptyGraph a -> NonEmptyGraph a
 replaceVertex u v = fmap $ \w -> if w == u then v else w
 
@@ -716,6 +717,7 @@ mergeVertices p v = fmap $ \w -> if p w then v else w
 -- splitVertex1 x (y ':|' [] )               == 'replaceVertex' x y
 -- splitVertex1 1 (0 ':|' [1]) $ 1 * (2 + 3) == (0 + 1) * (2 + 3)
 -- @
+{-# SPECIALISE splitVertex1 :: Int -> NonEmpty Int -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 splitVertex1 :: Eq a => a -> NonEmpty a -> NonEmptyGraph a -> NonEmptyGraph a
 splitVertex1 v us g = g >>= \w -> if w == v then vertices1 us else vertex w
 
@@ -745,7 +747,10 @@ transpose = foldg1 vertex overlay (flip connect)
 -- induce1 p '>=>' induce1 q == induce1 (\\x -> p x && q x)
 -- @
 induce1 :: (a -> Bool) -> NonEmptyGraph a -> Maybe (NonEmptyGraph a)
-induce1 p = foldg1' (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay) (k Connect)
+induce1 p = foldg1
+  (\x -> if p x then Just (Vertex x) else Nothing)
+  (k Overlay)
+  (k Connect)
   where
     k _ Nothing a = a
     k _ a Nothing = a
@@ -766,9 +771,11 @@ induce1 p = foldg1' (\x -> if p x then Just (Vertex x) else Nothing) (k Overlay)
 -- simplify (1 + 2 + 1) '===' 1 + 2
 -- simplify (1 * 1 * 1) '===' 1 * 1
 -- @
+{-# SPECIALISE simplify :: NonEmptyGraph Int -> NonEmptyGraph Int #-}
 simplify :: Ord a => NonEmptyGraph a -> NonEmptyGraph a
 simplify = foldg1 Vertex (simple Overlay) (simple Connect)
 
+{-# SPECIALISE simple :: (NonEmptyGraph Int -> NonEmptyGraph Int -> NonEmptyGraph Int) -> NonEmptyGraph Int -> NonEmptyGraph Int -> NonEmptyGraph Int #-}
 simple :: Eq g => (g -> g -> g) -> g -> g -> g
 simple op x y
     | x == z    = x
@@ -822,3 +829,26 @@ context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
             | otherwise = Nothing
   where
     f = focus p g
+
+-- | The /adjacency map/ of a graph: each vertex is associated with a set of its
+-- direct successors.
+-- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
+-- graph can be quadratic with respect to the expression size /s/.
+adjacencyMap :: Ord a => NonEmptyGraph a -> Map a (Set a)
+adjacencyMap = AM.adjacencyMap . fromGraphAM
+
+-- TODO: This is a very inefficient implementation. Find a way to construct an
+-- adjacency map directly, without building intermediate representations for all
+-- subgraphs.
+-- TODO: This should go to FromGraph type class.
+-- | Convert a graph to 'AM.AdjacencyMap'.
+fromGraphAM :: Ord a => NonEmptyGraph a -> AM.AdjacencyMap a
+fromGraphAM = foldg1 AM.vertex AM.overlay AM.connect
+
+-- | Like 'adjacencyMap' but specialised for graphs with vertices of type 'Int'.
+adjacencyIntMap :: NonEmptyGraph Int -> IntMap IntSet
+adjacencyIntMap = AIM.adjacencyIntMap . fromGraphAIM
+
+-- | Like 'fromGraphAM' but specialised for graphs with vertices of type 'Int'.
+fromGraphAIM :: NonEmptyGraph Int -> AIM.AdjacencyIntMap
+fromGraphAIM = foldg1 AIM.vertex AIM.overlay AIM.connect

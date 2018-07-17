@@ -66,8 +66,6 @@ import Data.Foldable (toList)
 import Data.Tree
 import Data.Maybe (isNothing)
 
-import Data.Functor.Classes (eq1)
-
 import Algebra.Graph.Internal
 
 import Data.IntMap (IntMap)
@@ -196,7 +194,11 @@ instance Num a => Num (Graph a) where
     negate      = id
 
 instance Ord a => Eq (Graph a) where
-  (G g1) == (G g2) = eq1 g1 g2
+  {-# SPECIALISE (==) :: Graph Int -> Graph Int -> Bool #-}
+  (G g1) == (G g2)=
+    case g1 of
+      Nothing -> isNothing g2
+      Just h1 -> maybe False (== h1) g2
 
 instance Applicative Graph where
   pure  = Vertex

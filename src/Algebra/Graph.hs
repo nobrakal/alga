@@ -66,6 +66,8 @@ import Data.Foldable (toList)
 import Data.Tree
 import Data.Maybe (isNothing)
 
+import Data.Functor.Classes (eq1)
+
 import Algebra.Graph.Internal
 
 import Data.IntMap (IntMap)
@@ -194,18 +196,7 @@ instance Num a => Num (Graph a) where
     negate      = id
 
 instance Ord a => Eq (Graph a) where
-    (==) = equals
-
--- TODO: Find a more efficient equality check.
--- | Compare two graphs by converting them to their adjacency maps.
-{-# NOINLINE [1] equals #-}
-{-# RULES "equalsInt" equals = equalsInt #-}
-equals :: Ord a => Graph a -> Graph a -> Bool
-equals x y = adjacencyMap x == adjacencyMap y
-
--- | Like @equals@ but specialised for graphs with vertices of type 'Int'.
-equalsInt :: Graph Int -> Graph Int -> Bool
-equalsInt x y = adjacencyIntMap x == adjacencyIntMap y
+  (G g1) == (G g2) = eq1 g1 g2
 
 instance Applicative Graph where
   pure  = Vertex

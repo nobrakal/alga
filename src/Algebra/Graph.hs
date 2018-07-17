@@ -63,7 +63,6 @@ import Control.Applicative (Alternative)
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
 import Data.Foldable (toList)
-import Data.Tree
 import Data.Maybe (isNothing)
 
 import Algebra.Graph.Internal
@@ -653,9 +652,8 @@ fromGraphAIM = foldg AIM.empty AIM.vertex AIM.overlay AIM.connect
 -- path . 'reverse' == 'transpose' . path
 -- @
 path :: [a] -> Graph a
-path xs = case xs of []     -> empty
-                     [x]    -> vertex x
-                     (_:ys) -> edges (zip xs ys)
+path = G . fmap N.path1 . NL.nonEmpty
+
 
 -- | The /circuit/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -668,8 +666,8 @@ path xs = case xs of []     -> empty
 -- circuit . 'reverse' == 'transpose' . circuit
 -- @
 circuit :: [a] -> Graph a
-circuit []     = empty
-circuit (x:xs) = path $ [x] ++ xs ++ [x]
+circuit = G . fmap N.circuit1 . NL.nonEmpty
+
 
 -- | The /clique/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -684,7 +682,7 @@ circuit (x:xs) = path $ [x] ++ xs ++ [x]
 -- clique . 'reverse'  == 'transpose' . clique
 -- @
 clique :: [a] -> Graph a
-clique = connects . map vertex
+clique = G . fmap N.clique1 . NL.nonEmpty
 
 -- | The /biclique/ on two lists of vertices.
 -- Complexity: /O(L1 + L2)/ time, memory and size, where /L1/ and /L2/ are the
@@ -711,7 +709,7 @@ biclique xs ys = connect (vertices xs) (vertices ys)
 -- star x ys    == 'connect' ('vertex' x) ('vertices' ys)
 -- @
 star :: a -> [a] -> Graph a
-star x ys = connect (vertex x) (vertices ys)
+star x = NE . N.star x
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -725,7 +723,7 @@ star x ys = connect (vertex x) (vertices ys)
 -- starTranspose x ys    == 'transpose' ('star' x ys)
 -- @
 starTranspose :: a -> [a] -> Graph a
-starTranspose x ys = connect (vertices ys) (vertex x)
+starTranspose x = NE . N.starTranspose x
 
 -- | The /tree graph/ constructed from a given 'Tree.Tree' data structure.
 -- Complexity: /O(T)/ time, memory and size, where /T/ is the size of the
@@ -738,8 +736,7 @@ starTranspose x ys = connect (vertices ys) (vertex x)
 -- tree (Node 1 [Node 2 [], Node 3 [Node 4 [], Node 5 []]]) == 'edges' [(1,2), (1,3), (3,4), (3,5)]
 -- @
 tree :: Tree.Tree a -> Graph a
-tree (Node x f ) = star x (map rootLabel f)
-         `overlay` forest (filter (not . null . subForest) f)
+tree = NE . N.tree
 
 -- | The /forest graph/ constructed from a given 'Tree.Forest' data structure.
 -- Complexity: /O(F)/ time, memory and size, where /F/ is the size of the

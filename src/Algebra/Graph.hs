@@ -308,7 +308,7 @@ edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
 
 edgesEq :: Eq a => [(a, a)] -> Graph a
-edgesEq = foldr (\(v,l) g -> Overlay g $ Connect (Vertex v) l) Empty . groupByWithVertices
+edgesEq = foldr (\(v,l) -> Overlay (Connect (Vertex v) l)) Empty . groupByWithVertices
 
 groupByWithVertices :: Eq a => [(a,a)] -> [(a,Graph a)]
 groupByWithVertices []     = []

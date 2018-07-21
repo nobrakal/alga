@@ -24,7 +24,7 @@ module Algebra.Graph (
 
     -- * Basic graph construction primitives
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
-    fromAdjacencyList,
+    fromAdjacencyList, edgesOrd,
 
     -- * Graph folding
     foldg,
@@ -60,6 +60,10 @@ import Control.Monad.Compat
 import Data.Foldable (toList)
 import Data.Tree
 
+import Data.Semigroup ((<>))
+
+import Data.List (intersect)
+
 import Algebra.Graph.Internal
 
 import Data.IntMap (IntMap)
@@ -73,6 +77,7 @@ import qualified Control.Applicative           as Ap
 import qualified Data.IntSet                   as IntSet
 import qualified Data.Set                      as Set
 import qualified Data.Tree                     as Tree
+import qualified Data.Map                      as Map
 
 {-| The 'Graph' data type is a deep embedding of the core graph construction
 primitives 'empty', 'vertex', 'overlay' and 'connect'. We define a 'Num'
@@ -305,6 +310,32 @@ vertices = overlays . map vertex
 -- @
 edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
+
+edgesOrd :: Ord a => [(a, a)] -> Graph a
+edgesOrd lst = st mapp Empty
+  where
+    st m g =
+      if Map.null m
+         then g
+         else
+           let ((k,lst),m') = Map.deleteFindMin m
+               (_,m'',g') = foldr (st' lst) (Set.empty, m',Empty) lst
+            in st m'' $ case g' of
+                          Empty -> overlay' (Vertex k) g
+                          _ -> overlay' (Connect (Vertex k) g') g
+    st' arr v t@(se,m',g) =
+      if v `Set.member` se then t else
+      let def = (se,m',overlay' (Vertex v) g)
+        in case Map.lookup v m' of
+             Nothing -> def
+             Just h ->
+               let inter = Set.intersection h arr
+                in if Set.null inter then def else
+                   let g' = Connect (Vertex v) (foldr (Overlay . vertex) Empty inter)
+                    in (Set.union se inter,Map.adjust (Set.filter (\x -> not $ x `Set.member` inter)) v m' ,overlay g' g)
+    mapp = Map.fromListWith Set.union $ map (fmap Set.singleton) lst
+    overlay' a Empty = a
+    overlay' a b = Overlay a b
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

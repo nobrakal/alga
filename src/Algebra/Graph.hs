@@ -60,10 +60,6 @@ import Control.Monad.Compat
 import Data.Foldable (toList)
 import Data.Tree
 
-import Data.Semigroup ((<>))
-
-import Data.List (intersect)
-
 import Algebra.Graph.Internal
 
 import Data.IntMap (IntMap)
@@ -319,20 +315,30 @@ edgesOrd lst = st mapp Empty
          then g
          else
            let ((k,lst),m') = Map.deleteFindMin m
-               (_,m'',g') = foldr (st' lst) (Set.empty, m',Empty) lst
-            in st m'' $ case g' of
-                          Empty -> overlay' (Vertex k) g
-                          _ -> overlay' (Connect (Vertex k) g') g
+            in if Set.null lst
+                  then st m' $ overlay' (Vertex k) g
+                  else let (headLst,tailLst) = Set.deleteFindMin lst
+                           (_,m'',g') = foldr (st' lst) (st'First lst headLst m') tailLst
+                        in st m'' $ overlay' (Connect (Vertex k) g') g
     st' arr v t@(se,m',g) =
       if v `Set.member` se then t else
-      let def = (se,m',overlay' (Vertex v) g)
+      let def = (se,m',Overlay (Vertex v) g)
         in case Map.lookup v m' of
              Nothing -> def
              Just h ->
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let g' = Connect (Vertex v) (foldr (Overlay . vertex) Empty inter)
-                    in (Set.union se inter,Map.adjust (Set.filter (\x -> not $ x `Set.member` inter)) v m' ,overlay g' g)
+                    in (Set.union se inter,Map.adjust (`Set.difference` inter) v m' ,overlay g' g)
+    st'First arr v m' =
+      let def = (Set.empty,m',Vertex v)
+        in case Map.lookup v m' of
+             Nothing -> def
+             Just h ->
+               let inter = Set.intersection h arr
+                in if Set.null inter then def else
+                  let g' = Connect (Vertex v) (foldr (Overlay . vertex) Empty inter)
+                    in (inter,Map.adjust (`Set.difference` inter) v m',g')
     mapp = Map.fromListWith Set.union $ map (fmap Set.singleton) lst
     overlay' a Empty = a
     overlay' a b = Overlay a b

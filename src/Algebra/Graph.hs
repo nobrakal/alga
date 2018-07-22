@@ -24,7 +24,7 @@ module Algebra.Graph (
 
     -- * Basic graph construction primitives
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
-    fromAdjacencyList, edgesOrd,
+    fromAdjacencyList, edgesOrd, edgesInt,
 
     -- * Graph folding
     foldg,
@@ -74,6 +74,9 @@ import qualified Data.IntSet                   as IntSet
 import qualified Data.Set                      as Set
 import qualified Data.Tree                     as Tree
 import qualified Data.Map                      as Map
+
+
+import qualified Data.IntMap                   as IntMap
 
 {-| The 'Graph' data type is a deep embedding of the core graph construction
 primitives 'empty', 'vertex', 'overlay' and 'connect'. We define a 'Num'
@@ -329,7 +332,7 @@ edgesOrd lst = st mapp Empty
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let g' = Connect (Vertex v) (foldr (Overlay . vertex) Empty inter)
-                    in (Set.union se inter,Map.adjust (`Set.difference` inter) v m' ,overlay g' g)
+                    in (Set.union se inter,Map.adjust (`Set.difference` inter) v m' ,Overlay g' g)
     st'First arr v m' =
       let def = (Set.empty,m',Vertex v)
         in case Map.lookup v m' of
@@ -340,6 +343,42 @@ edgesOrd lst = st mapp Empty
                   let g' = Connect (Vertex v) (foldr (Overlay . vertex) Empty inter)
                     in (inter,Map.adjust (`Set.difference` inter) v m',g')
     mapp = Map.fromListWith Set.union $ map (fmap Set.singleton) lst
+    overlay' a Empty = a
+    overlay' a b = Overlay a b
+
+edgesInt :: [(Int, Int)] -> Graph Int
+edgesInt lst = st mapp Empty
+  where
+    st m g =
+      if IntMap.null m
+         then g
+         else
+           let ((k,lst),m') = IntMap.deleteFindMin m
+            in if IntSet.null lst
+                  then st m' $ overlay' (Vertex k) g
+                  else let (headLst,tailLst) = IntSet.deleteFindMin lst
+                           (_,m'',g') = IntSet.foldr (st' lst) (st'First lst headLst m') tailLst
+                        in st m'' $ overlay' (Connect (Vertex k) g') g
+    st' arr v t@(se,m',g) =
+      if v `IntSet.member` se then t else
+      let def = (se,m',Overlay (Vertex v) g)
+        in case IntMap.lookup v m' of
+             Nothing -> def
+             Just h ->
+               let inter = IntSet.intersection h arr
+                in if IntSet.null inter then def else
+                   let g' = Connect (Vertex v) (IntSet.foldr (Overlay . vertex) Empty inter)
+                    in (IntSet.union se inter,IntMap.adjust (`IntSet.difference` inter) v m' ,Overlay g' g)
+    st'First arr v m' =
+      let def = (IntSet.empty,m',Vertex v)
+        in case IntMap.lookup v m' of
+             Nothing -> def
+             Just h ->
+               let inter = IntSet.intersection h arr
+                in if IntSet.null inter then def else
+                  let g' = Connect (Vertex v) (IntSet.foldr (Overlay . vertex) Empty inter)
+                    in (inter,IntMap.adjust (`IntSet.difference` inter) v m',g')
+    mapp = IntMap.fromListWith IntSet.union $ map (fmap IntSet.singleton) lst
     overlay' a Empty = a
     overlay' a b = Overlay a b
 

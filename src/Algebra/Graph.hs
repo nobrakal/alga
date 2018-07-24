@@ -74,8 +74,6 @@ import qualified Data.IntSet                   as IntSet
 import qualified Data.Set                      as Set
 import qualified Data.Tree                     as Tree
 
-import Data.Function (on)
-
 import Data.Ord (comparing)
 import Data.List (sortBy)
 
@@ -352,10 +350,15 @@ edgesOrd = overlays . changeLst . sortBy (comparing fst) . groupByWithVertices
 
 groupByWithVertices :: Ord a => [(a,a)] -> [(a,Set a)]
 groupByWithVertices []     = []
-groupByWithVertices (x:xs) = (fst x, Set.fromList $ map snd $ x:ys) : groupByWithVertices zs
+groupByWithVertices ((xl,xr):xs) = (xl, Set.fromList $ xr:ys) : groupByWithVertices zs
   where
-    eq = on (==) fst
-    (ys,zs) = span (eq x) xs
+    (ys,zs) = spanCustom xl xs
+
+spanCustom                      :: Eq a => a -> [(a,b)] -> ([b],[(a,b)])
+spanCustom _ []                 =  ([],[])
+spanCustom a xs@((xl,xr):xs')
+  | xl == a      =  let (ys,zs) = spanCustom a xs' in (xr:ys,zs)
+  | otherwise    =  ([],xs)
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

@@ -144,3 +144,7 @@ testGraph = do
 
     test "edgeCount   (box x y) <= vertexCount x * edgeCount y + edgeCount x * vertexCount y" $ mapSize (min 10) $ \(x :: G) (y :: G) ->
           edgeCount   (box x y) <= vertexCount x * edgeCount y + edgeCount x * vertexCount y
+
+    putStrLn "\n============ Graph.edgesOrd ============"
+    test "edgesOrd             == edges" $ \xs ->
+          edgesOrd xs          == (edges xs:: Graph Int)

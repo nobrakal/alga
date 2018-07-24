@@ -315,7 +315,7 @@ edgesOrd = overlays . changeLst . sortBy (comparing fst) . groupByWithVertices
     changeLst [] = []
     changeLst ((k,lst):xs) =
       if Set.null lst
-         then Vertex k : changeLst xs
+         then changeLst xs
          else let (headLst,tailLst) = Set.deleteFindMin lst
                   (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
                 in Connect (Vertex k) g' : changeLst (removeEdges xs' xs)

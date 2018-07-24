@@ -317,36 +317,47 @@ edgesOrd = overlays . changeLst . sortBy (comparing fst) . groupByWithVertices
       if Set.null lst
          then Vertex k : changeLst xs
          else let (headLst,tailLst) = Set.deleteFindMin lst
-                  (_,xs',g') = foldr (st' lst) (st'First lst headLst xs) tailLst
-                in Connect (Vertex k) g' : changeLst xs'
-    st' arr v t@(se,xs,g) =
+                  (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
+                in Connect (Vertex k) g' : changeLst (removeEdges xs' xs)
+    st' arr xs v t@(se,xs',g) =
       if v `Set.member` se then t else
-      let def = (se,xs,Overlay (Vertex v) g)
-        in case lookup v xs of
+      let def = (se,xs',Overlay (Vertex v) g)
+        in case lookupSorted v xs of
              Nothing -> def
              Just h ->
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let (headInter,tailInter) = Set.deleteFindMin inter
                        g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
-                    in (Set.union se inter, removeEdges v inter xs, Overlay g' g)
+                    in (Set.union se inter, (v,inter):xs', Overlay g' g)
     st'First arr v xs =
-      let def = (Set.empty,xs,Vertex v)
-        in case lookup v xs of
+      let def = (Set.empty,[],Vertex v)
+        in case lookupSorted v xs of
              Nothing -> def
              Just h ->
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let (headInter,tailInter) = Set.deleteFindMin inter
                        g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
-                   in (inter,removeEdges v inter xs,g')
-    -- lst must be sorted !!
-    removeEdges _ _ [] = []
-    removeEdges x y lst@(v@(u,us):ws) =
-      case x `compare` u of
-        LT -> v : removeEdges x y ws
-        EQ -> (u,Set.difference us y) : ws
-        GT -> lst
+                   in (inter,[(v,inter)],g')
+
+-- lst must be sorted !!
+removeEdges :: Ord a => [(a,Set a)] -> [(a,Set a)] -> [(a,Set a)]
+removeEdges _ [] = []
+removeEdges [] x = x
+removeEdges ((yn,yl):ys) lst@(v@(u,us):ws) =
+  case yn `compare` u of
+    LT -> v : removeEdges ys lst
+    EQ -> (u,Set.difference us yl) : removeEdges ys ws
+    GT -> lst
+
+lookupSorted :: Ord a => a -> [(a,b)] -> Maybe b
+lookupSorted _ [] = Nothing
+lookupSorted a ((u,v):xs) =
+  case a `compare` u of
+    LT -> lookupSorted a xs
+    EQ -> Just v
+    GT -> Nothing
 
 groupByWithVertices :: Ord a => [(a,a)] -> [(a,Set a)]
 groupByWithVertices []     = []

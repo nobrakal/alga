@@ -24,7 +24,7 @@ module Algebra.Graph (
 
     -- * Basic graph construction primitives
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
-    fromAdjacencyList,
+    fromAdjacencyList, edgesEq,
 
     -- * Graph folding
     foldg,
@@ -58,6 +58,7 @@ import Control.Applicative (Alternative)
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Compat
 import Data.Foldable (toList)
+import Data.Function (on)
 import Data.Tree
 
 import Algebra.Graph.Internal
@@ -305,6 +306,17 @@ vertices = overlays . map vertex
 -- @
 edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
+
+edgesEq :: Eq a => [(a, a)] -> Graph a
+edgesEq = foldr (\(v,l) -> Overlay (Connect (Vertex v) l)) Empty . groupByWithVertices
+
+groupByWithVertices :: Eq a => [(a,a)] -> [(a,Graph a)]
+groupByWithVertices []     = []
+groupByWithVertices (x:xs) = (fst x, vertices1 x ys) : groupByWithVertices zs
+  where
+    eq = on (==) fst
+    (ys,zs) = span (eq x) xs
+    vertices1 x = foldr (Overlay . vertex . snd) (vertex $ snd x)
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

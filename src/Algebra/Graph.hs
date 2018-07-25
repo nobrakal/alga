@@ -310,7 +310,7 @@ edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
 
 edgesOrd :: Ord a => [(a, a)] -> Graph a
-edgesOrd = overlays . changeLst . sortBy (comparing fst) . groupByWithVertices
+edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
   where
     changeLst [] = []
     changeLst ((k,lst):xs) =

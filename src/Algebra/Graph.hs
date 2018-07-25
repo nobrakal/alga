@@ -307,16 +307,23 @@ vertices = overlays . map vertex
 edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
 
+{-# SPECIALISE edgesEq :: [(Int,Int)] -> Graph Int #-}
 edgesEq :: Eq a => [(a, a)] -> Graph a
-edgesEq = foldr (\(v,l) -> Overlay (Connect (Vertex v) l)) Empty . groupByWithVertices
+edgesEq = overlays . groupByWithVertices
 
-groupByWithVertices :: Eq a => [(a,a)] -> [(a,Graph a)]
+{-# SPECIALISE groupByWithVertices :: [(Int,Int)] -> [Graph Int] #-}
+groupByWithVertices :: Eq a => [(a,a)] -> [Graph a]
 groupByWithVertices []     = []
-groupByWithVertices (x:xs) = (fst x, vertices1 x ys) : groupByWithVertices zs
+groupByWithVertices ((xl,xr):xs) = Connect (Vertex xl) (foldr Overlay (Vertex xr) ys) : groupByWithVertices zs
   where
-    eq = on (==) fst
-    (ys,zs) = span (eq x) xs
-    vertices1 x = foldr (Overlay . vertex . snd) (vertex $ snd x)
+    (ys,zs) = spanCustom xl xs
+
+{-# SPECIALISE spanCustom :: Int -> [(Int,Int)] -> ([Graph Int],[(Int,Int)]) #-}
+spanCustom                      :: Eq a => a -> [(a,b)] -> ([Graph b],[(a,b)])
+spanCustom _ []                 =  ([],[])
+spanCustom a xs@((xl,xr):xs')
+  | xl == a   =  let (ys,zs) = spanCustom a xs' in (Vertex xr:ys,zs)
+  | otherwise = ([],xs)
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

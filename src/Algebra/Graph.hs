@@ -72,6 +72,7 @@ import qualified Algebra.Graph.AdjacencyIntMap as AIM
 import qualified Control.Applicative           as Ap
 import qualified Data.IntSet                   as IntSet
 import qualified Data.Set                      as Set
+import qualified Data.Set.Internal             as SetI
 import qualified Data.Tree                     as Tree
 
 import Data.Ord (comparing)
@@ -316,8 +317,8 @@ edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
     changeLst ((k,lst):xs) =
       if Set.null lst
          then changeLst xs
-         else let (headLst,tailLst) = Set.deleteFindMin lst
-                  (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
+         else let (l,m,r) = splitRoot lst
+                  (_,xs',g') = foldr (st' lst xs) (foldr (st' lst xs) (st'First lst m xs) l) r
                 in Connect (Vertex k) g' : changeLst (removeEdges xs' xs)
     st' arr xs v t@(se,xs',g) =
       if v `Set.member` se then t else
@@ -327,8 +328,8 @@ edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
              Just h ->
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
+                   let (l,m,r) = splitRoot inter
+                       g' = Connect (Vertex v) $ foldr (Overlay . Vertex) (foldr (Overlay . Vertex) (Vertex m) l) r
                     in (Set.union se inter, (v,inter):xs', Overlay g' g)
     st'First arr v xs =
       let def = (Set.empty,[],Vertex v)
@@ -337,9 +338,12 @@ edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
              Just h ->
                let inter = Set.intersection h arr
                 in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
+                   let (l,m,r) = splitRoot inter
+                       g' = Connect (Vertex v) $ foldr (Overlay . Vertex) (foldr (Overlay . Vertex) (Vertex m) l) r
                    in (inter,[(v,inter)],g')
+
+splitRoot :: Set a -> (Set a, a, Set a)
+splitRoot (SetI.Bin _ b a c) = (a,b,c)
 
 -- lst must be sorted !!
 removeEdges :: Ord a => [(a,Set a)] -> [(a,Set a)] -> [(a,Set a)]

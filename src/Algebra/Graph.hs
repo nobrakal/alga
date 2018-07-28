@@ -310,35 +310,35 @@ edges :: [(a, a)] -> Graph a
 edges = overlays . map (uncurry edge)
 
 edgesOrd :: Ord a => [(a, a)] -> Graph a
-edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
+edgesOrd = changeLst . groupByWithVertices . sortBy (comparing fst)
   where
-    changeLst [] = []
+    changeLst [] = empty
     changeLst ((k,lst):xs) =
       if Set.null lst
          then changeLst xs
          else let (headLst,tailLst) = Set.deleteFindMin lst
                   (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
-                in Connect (Vertex k) g' : changeLst (removeEdges xs' xs)
+                in overlay (connect (vertex k) g') $ changeLst (removeEdges xs' xs)
     st' arr xs v t@(se,xs',g) =
       if v `Set.member` se then t else
-      let def = (se,xs',Overlay (Vertex v) g)
+      let def = (se,xs',overlay (vertex v) g)
         in case lookupSorted v xs of
              Nothing -> def
              Just h ->
-               let inter = Set.intersection h arr
+               let !inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
-                    in (Set.union se inter, (v,inter):xs', Overlay g' g)
+                       g' = connect (vertex v) (foldr (overlay . vertex) (vertex headInter) tailInter)
+                    in (Set.union se inter, (v,inter):xs', overlay g' g)
     st'First arr v xs =
-      let def = (Set.empty,[],Vertex v)
+      let def = (Set.empty,[],vertex v)
         in case lookupSorted v xs of
              Nothing -> def
              Just h ->
-               let inter = Set.intersection h arr
+               let !inter = Set.intersection h arr
                 in if Set.null inter then def else
                    let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
+                       g' = connect (vertex v) (foldr (overlay . vertex) (vertex headInter) tailInter)
                    in (inter,[(v,inter)],g')
 
 -- lst must be sorted !!

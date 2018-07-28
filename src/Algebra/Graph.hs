@@ -347,7 +347,7 @@ removeEdges _ [] = []
 removeEdges [] x = x
 removeEdges ((yn,yl):ys) lst@(v@(u,us):ws) =
   case yn `compare` u of
-    LT -> v : removeEdges ys lst
+    LT -> v : removeEdges ys ws
     EQ -> (u,Set.difference us yl) : removeEdges ys ws
     GT -> lst
 

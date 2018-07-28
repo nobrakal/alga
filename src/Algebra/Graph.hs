@@ -317,29 +317,29 @@ edgesOrd = overlays . changeLst . groupByWithVertices . sortBy (comparing fst)
       if Set.null lst
          then changeLst xs
          else let (headLst,tailLst) = Set.deleteFindMin lst
-                  (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
-                in Connect (Vertex k) g' : changeLst (removeEdges xs' xs)
-    st' arr xs v t@(se,xs',g) =
+                  (_,g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
+                in connect (vertex k) (stars1 $ map (fmap toList) g') : changeLst (removeEdges g' xs)
+    st' arr xs v t@(se,g) =
       if v `Set.member` se then t else
-      let def = (se,xs',Overlay (Vertex v) g)
-        in case lookupSorted v xs of
-             Nothing -> def
-             Just h ->
-               let inter = Set.intersection h arr
-                in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
-                    in (Set.union se inter, (v,inter):xs', Overlay g' g)
+        case lookupSorted v xs of
+             Nothing -> (se,(v, Set.empty):g)
+             Just h -> let inter = Set.intersection h arr
+              in (Set.union se inter, (v,inter) : g)
     st'First arr v xs =
-      let def = (Set.empty,[],Vertex v)
-        in case lookupSorted v xs of
-             Nothing -> def
-             Just h ->
-               let inter = Set.intersection h arr
-                in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = Connect (Vertex v) (foldr (Overlay . Vertex) (Vertex headInter) tailInter)
-                   in (inter,[(v,inter)],g')
+      case lookupSorted v xs of
+             Nothing -> (Set.empty,[(v, Set.empty)])
+             Just h -> let inter = Set.intersection h arr
+              in (inter,[(v,inter)])
+
+stars1 :: [(a, [a])] -> Graph a
+stars1 [] = Empty
+stars1 (x:xs) = foldr overlay (uncurry star1 x) $ map (uncurry star1) xs
+
+star1 :: a -> [a] -> Graph a
+star1 u v =
+  case v of
+    [] -> vertex u
+    (x:xs) -> connect (vertex u) (foldr (overlay . vertex) (vertex x) xs)
 
 -- lst must be sorted !!
 removeEdges :: Ord a => [(a,Set a)] -> [(a,Set a)] -> [(a,Set a)]
@@ -347,7 +347,7 @@ removeEdges _ [] = []
 removeEdges [] x = x
 removeEdges ((yn,yl):ys) lst@(v@(u,us):ws) =
   case yn `compare` u of
-    LT -> v : removeEdges ys lst
+    LT -> v : removeEdges ys ws
     EQ -> (u,Set.difference us yl) : removeEdges ys ws
     GT -> lst
 

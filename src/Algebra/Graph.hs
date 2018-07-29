@@ -977,7 +977,9 @@ data Context a = Context { inputs :: [a], outputs :: [a] }
 -- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
 -- could not be obtained.
 context :: (a -> Bool) -> Graph a -> Maybe (Context a)
-context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
-            | otherwise = Nothing
-  where
-    f = focus p g
+context p g =
+  case focus p g of
+    (Focus ok' is' os' _) ->
+      if ok'
+         then Just $ Context (toList is') (toList os')
+         else Nothing

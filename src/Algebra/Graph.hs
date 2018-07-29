@@ -77,6 +77,9 @@ import qualified Data.Tree                     as Tree
 import Data.Ord (comparing)
 import Data.List (sortBy)
 
+import Data.List.NonEmpty (NonEmpty(..),(<|))
+import qualified Data.List.NonEmpty as NE
+
 {-| The 'Graph' data type is a deep embedding of the core graph construction
 primitives 'empty', 'vertex', 'overlay' and 'connect'. We define a 'Num'
 instance as a convenient notation for working with graphs:
@@ -317,29 +320,34 @@ edgesOrd = changeLst . groupByWithVertices . sortBy (comparing fst)
       if Set.null lst
          then changeLst xs
          else let (headLst,tailLst) = Set.deleteFindMin lst
-                  (_,xs',g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
-                in overlay (connect (vertex k) g') $ changeLst (removeEdges xs' xs)
-    st' arr xs v t@(se,xs',g) =
+                  (_,g') = foldr (st' lst xs) (st'First lst headLst xs) tailLst
+                in overlay (connect (vertex k) $ stars $ fmap (fmap toList) g') $ changeLst (removeEdges (NE.toList g') xs)
+    st' arr xs v t@(se,g) =
       if v `Set.member` se then t else
-      let def = (se,xs',overlay (vertex v) g)
+      let def = (se,(v,Set.empty)<|g)
         in case lookupSorted v xs of
              Nothing -> def
              Just h ->
-               let !inter = Set.intersection h arr
+               let inter = Set.intersection h arr
                 in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = connect (vertex v) (foldr (overlay . vertex) (vertex headInter) tailInter)
-                    in (Set.union se inter, (v,inter):xs', overlay g' g)
+                   (Set.union se inter, (v,inter)<|g)
     st'First arr v xs =
-      let def = (Set.empty,[],vertex v)
+      let def = (Set.empty,(v, Set.empty) :| [])
         in case lookupSorted v xs of
              Nothing -> def
              Just h ->
-               let !inter = Set.intersection h arr
+               let inter = Set.intersection h arr
                 in if Set.null inter then def else
-                   let (headInter,tailInter) = Set.deleteFindMin inter
-                       g' = connect (vertex v) (foldr (overlay . vertex) (vertex headInter) tailInter)
-                   in (inter,[(v,inter)],g')
+                   (inter,(v,inter) :| [])
+
+stars :: NonEmpty (a, [a]) -> Graph a
+stars = overlays1 . fmap (uncurry star1)
+  where
+    overlays1 (x :| xs) = foldr overlay x xs
+
+star1 :: a -> [a] -> Graph a
+star1 x [] = vertex x
+star1 x (xx:xs) = connect (vertex x) $ foldr (overlay . vertex) (vertex xx) xs
 
 -- lst must be sorted !!
 removeEdges :: Ord a => [(a,Set a)] -> [(a,Set a)] -> [(a,Set a)]

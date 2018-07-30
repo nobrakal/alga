@@ -292,6 +292,7 @@ connect = Connect
 -- @
 vertices :: [a] -> Graph a
 vertices = overlays . map vertex
+{-# NOINLINE [1] vertices #-}
 
 -- | Construct the graph from a list of edges.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -679,6 +680,7 @@ biclique xs ys = connect (vertices xs) (vertices ys)
 star :: a -> [a] -> Graph a
 star x [] = vertex x
 star x ys = connect (vertex x) (vertices ys)
+{-# INLINE star #-}
 
 -- | The /stars/ formed by overlaying a list of 'star's. An inverse of
 -- 'adjacencyList'.
@@ -696,6 +698,7 @@ star x ys = connect (vertex x) (vertices ys)
 -- @
 stars :: [(a, [a])] -> Graph a
 stars = overlays . map (uncurry star)
+{-# NOINLINE [1] stars #-}
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -875,7 +878,6 @@ mergeVertices p v = fmap $ \w -> if p w then v else w
 splitVertex :: Eq a => a -> [a] -> Graph a -> Graph a
 splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
 
-
 -- | Transpose a given graph.
 -- Complexity: /O(s)/ time, memory and size.
 --
@@ -889,6 +891,14 @@ splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
 -- @
 transpose :: Graph a -> Graph a
 transpose = foldg Empty Vertex Overlay (flip Connect)
+{-# NOINLINE [1] transpose #-}
+
+{-# RULES
+"transpose/connect"  forall g1 g2. transpose (connect g1 g2) = connect (transpose g2) (transpose g1)
+"transpose/vertex"   forall v. transpose (vertex v) = vertex v
+"transpose/vertices" forall xs. transpose (vertices xs) = vertices xs
+"transpose/stars" forall xs. transpose (stars xs) = overlays (map (transpose . uncurry star) xs)
+ #-}
 
 -- | Construct the /induced subgraph/ of a given graph by removing the
 -- vertices that do not satisfy a given predicate.

@@ -20,9 +20,7 @@ module Algebra.Graph.Internal (
     List (..),
 
     -- * Data structures for graph traversal
-    Focus (..), emptyFocus, vertexFocus, overlayFoci, connectFoci,
-
-    Context (..)
+    Focus (..), emptyFocus, vertexFocus, overlayFoci, connectFoci, Hit (..)
   ) where
 
 import Prelude ()
@@ -106,6 +104,6 @@ connectFoci x y = Focus (ok x || ok y) (xs <> is y) (os x <> ys) (vs x <> vs y)
     xs = if ok y then vs x else is x
     ys = if ok x then vs y else os y
 
--- | The context of a subgraph comprises the input and output vertices outside
--- the subgraph that are connected to the vertices inside the subgraph.
-data Context a = Context { inputs :: [a], outputs :: [a] }
+-- | An auxiliary data type for 'hasEdge': when searching for an edge, we can hit
+-- its 'Tail', i.e. the source vertex, the whole 'Edge', or 'Miss' it entirely.
+data Hit = Miss | Tail | Edge deriving (Eq, Ord)

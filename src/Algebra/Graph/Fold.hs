@@ -32,11 +32,11 @@ module Algebra.Graph.Fold (
     isSubgraphOf,
 
     -- * Graph properties
-    isEmpty, size, hasVertex, hasEdge, hasSelfLoop, vertexCount, edgeCount,
-    vertexList, edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
+    isEmpty, size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList,
+    edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
 
     -- * Standard families of graphs
-    path, circuit, clique, biclique, star, starTranspose,
+    path, circuit, clique, biclique, star, stars, starTranspose,
 
     -- * Graph transformation
     removeVertex, removeEdge, transpose, induce, simplify,
@@ -49,9 +49,12 @@ import Control.Applicative (Alternative, liftA2)
 import Control.Monad.Compat (MonadPlus (..), ap)
 import Data.Function
 
+import Control.DeepSeq (NFData (..))
+
 import Algebra.Graph.ToGraph (ToGraph, ToVertex, toGraph)
 
 import qualified Algebra.Graph              as G
+import qualified Algebra.Graph.NonEmpty     as NG
 import qualified Algebra.Graph.AdjacencyMap as AM
 import qualified Algebra.Graph.ToGraph      as T
 import qualified Control.Applicative        as Ap
@@ -149,6 +152,9 @@ instance (Ord a, Show a) => Show (Fold a) where
 
 instance Ord a => Eq (Fold a) where
     x == y = T.adjacencyMap x == T.adjacencyMap y
+
+instance NFData a => NFData (Fold a) where
+    rnf = foldg () rnf seq seq
 
 instance Num a => Num (Fold a) where
     fromInteger = vertex . fromInteger
@@ -405,20 +411,6 @@ hasVertex = T.hasVertex
 hasEdge :: Eq a => a -> a -> Fold a -> Bool
 hasEdge = T.hasEdge
 
--- | Check if a graph contains a given loop.
--- Complexity: /O(s)/ time.
---
--- @
--- hasSelfLoop x 'empty'            == False
--- hasSelfLoop x ('vertex' z)       == False
--- hasSelfLoop x ('edge' x x)       == True
--- hasSelfLoop x                  == 'hasEdge' x x
--- hasSelfLoop x . 'removeEdge' x x == const False
--- hasSelfLoop x                  == 'elem' (x,x) . 'edgeList'
--- @
-hasSelfLoop :: Eq a => a -> Fold a -> Bool
-hasSelfLoop = T.hasSelfLoop
-
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
 --
@@ -511,11 +503,11 @@ edgeSet = T.edgeSet
 -- graph can be quadratic with respect to the expression size /s/.
 --
 -- @
--- adjacencyList 'empty'               == []
--- adjacencyList ('vertex' x)          == [(x, [])]
--- adjacencyList ('edge' 1 2)          == [(1, [2]), (2, [])]
--- adjacencyList ('star' 2 [3,1])      == [(1, []), (2, [1,3]), (3, [])]
--- 'fromAdjacencyList' . adjacencyList == id
+-- adjacencyList 'empty'          == []
+-- adjacencyList ('vertex' x)     == [(x, [])]
+-- adjacencyList ('edge' 1 2)     == [(1, [2]), (2, [])]
+-- adjacencyList ('star' 2 [3,1]) == [(1, []), (2, [1,3]), (3, [])]
+-- 'stars' . adjacencyList        == id
 -- @
 adjacencyList :: Ord a => Fold a -> [(a, [a])]
 adjacencyList = T.adjacencyList
@@ -594,6 +586,23 @@ star :: a -> [a] -> Fold a
 star x [] = vertex x
 star x ys = connect (vertex x) (vertices ys)
 
+-- | The /stars/ formed by overlaying a list of 'star's. An inverse of
+-- 'adjacencyList'.
+-- Complexity: /O(L)/ time, memory and size, where /L/ is the total size of the
+-- input.
+--
+-- @
+-- stars []                      == 'empty'
+-- stars [(x, [])]               == 'vertex' x
+-- stars [(x, [y])]              == 'edge' x y
+-- stars [(x, ys)]               == 'star' x ys
+-- stars                         == 'overlays' . map (uncurry 'star')
+-- stars . 'adjacencyList'         == id
+-- 'overlay' (stars xs) (stars ys) == stars (xs ++ ys)
+-- @
+stars :: [(a, [a])] -> Fold a
+stars = overlays . map (uncurry star)
+
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
 -- given list.
@@ -641,8 +650,8 @@ removeEdge s t = filterContext s (/=s) (/=t)
 filterContext :: Eq a => a -> (a -> Bool) -> (a -> Bool) -> Fold a -> Fold a
 filterContext s i o g = maybe g go $ G.context (==s) (toGraph g)
   where
-    go (G.Context is os) = induce (/=s) g `overlay` starTranspose s (filter i is)
-                                          `overlay` star          s (filter o os)
+    go (NG.Context is os) = induce (/=s) g `overlay` starTranspose s (filter i is)
+                                           `overlay` star          s (filter o os)
 
 -- | Transpose a given graph.
 -- Complexity: /O(s)/ time, memory and size.

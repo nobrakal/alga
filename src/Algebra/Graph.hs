@@ -26,7 +26,6 @@ module Algebra.Graph (
 
     -- * Basic graph construction primitives
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
-    fromAdjacencyList,
 
     -- * Graph folding
     foldg,
@@ -35,12 +34,12 @@ module Algebra.Graph (
     isSubgraphOf, (===),
 
     -- * Graph properties
-    isEmpty, size, hasVertex, hasEdge, hasSelfLoop, vertexCount, edgeCount,
-    vertexList, edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
+    isEmpty, size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList,
+    edgeList, vertexSet, vertexIntSet, edgeSet, adjacencyList,
 
     -- * Standard families of graphs
-    path, circuit, clique, biclique, star, starTranspose, tree, forest, mesh,
-    torus, deBruijn,
+    path, circuit, clique, biclique, star, stars, starTranspose, tree, forest,
+    mesh, torus, deBruijn,
 
     -- * Graph transformation
     removeVertex, removeEdge, replaceVertex, mergeVertices, splitVertex,
@@ -50,7 +49,7 @@ module Algebra.Graph (
     box,
 
     -- * Conversion to graphs
-    adjacencyMap, adjacencyIntMap, Context (..), context,
+    adjacencyMap, adjacencyIntMap, context,
 
     -- * fromNonEmpty
     fromNonEmpty
@@ -353,19 +352,6 @@ overlays = foldr overlay empty
 connects :: [Graph a] -> Graph a
 connects = foldr connect empty
 
--- | Construct a graph from an adjacency list.
--- Complexity: /O((n + m))/ time, memory and size.
---
--- @
--- fromAdjacencyList []                                  == 'empty'
--- fromAdjacencyList [(x, [])]                           == 'vertex' x
--- fromAdjacencyList [(x, [y])]                          == 'edge' x y
--- fromAdjacencyList . 'adjacencyList'                     == id
--- 'overlay' (fromAdjacencyList xs) (fromAdjacencyList ys) == fromAdjacencyList (xs ++ ys)
--- @
-fromAdjacencyList :: [(a, [a])] -> Graph a
-fromAdjacencyList = overlays . map (uncurry star)
-
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- the provided functions to the leaves and internal nodes of the expression.
 -- The order of arguments is: empty, vertex, overlay and connect.
@@ -460,8 +446,6 @@ size = foldg 1 (const 1) (+) (+)
 hasVertex :: Eq a => a -> Graph a -> Bool
 hasVertex x (G g) = maybe False (N.hasVertex x) g
 
--- TODO: Benchmark to see if this implementation is faster than the default
--- implementation provided by the ToGraph type class.
 -- | Check if a graph contains a given edge.
 -- Complexity: /O(s)/ time.
 --
@@ -475,21 +459,6 @@ hasVertex x (G g) = maybe False (N.hasVertex x) g
 {-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
 hasEdge u v (G g)= maybe False (N.hasEdge u v) g
-
--- | Check if a graph contains a given loop.
--- Complexity: /O(s)/ time.
---
--- @
--- hasSelfLoop x 'empty'            == False
--- hasSelfLoop x ('vertex' z)       == False
--- hasSelfLoop x ('edge' x x)       == True
--- hasSelfLoop x                  == 'hasEdge' x x
--- hasSelfLoop x . 'removeEdge' x x == const False
--- hasSelfLoop x                  == 'elem' (x,x) . 'edgeList'
--- @
-{-# SPECIALISE hasSelfLoop :: Int -> Graph Int -> Bool #-}
-hasSelfLoop :: Eq a => a -> Graph a -> Bool
-hasSelfLoop v (G g)= maybe False (N.hasSelfLoop v) g
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -607,11 +576,11 @@ edgeIntSet = AIM.edgeSet . fromGraphAIM
 -- Complexity: /O(n + m)/ time and /O(m)/ memory.
 --
 -- @
--- adjacencyList 'empty'               == []
--- adjacencyList ('vertex' x)          == [(x, [])]
--- adjacencyList ('edge' 1 2)          == [(1, [2]), (2, [])]
--- adjacencyList ('star' 2 [3,1])      == [(1, []), (2, [1,3]), (3, [])]
--- 'fromAdjacencyList' . adjacencyList == id
+-- adjacencyList 'empty'          == []
+-- adjacencyList ('vertex' x)     == [(x, [])]
+-- adjacencyList ('edge' 1 2)     == [(1, [2]), (2, [])]
+-- adjacencyList ('star' 2 [3,1]) == [(1, []), (2, [1,3]), (3, [])]
+-- 'stars' . adjacencyList        == id
 -- @
 {-# SPECIALISE adjacencyList :: Graph Int -> [(Int,[Int])] #-}
 adjacencyList :: Ord a => Graph a -> [(a, [a])]
@@ -710,6 +679,23 @@ biclique xs ys = connect (vertices xs) (vertices ys)
 -- @
 star :: a -> [a] -> Graph a
 star x = NE . N.star x
+
+-- | The /stars/ formed by overlaying a list of 'star's. An inverse of
+-- 'adjacencyList'.
+-- Complexity: /O(L)/ time, memory and size, where /L/ is the total size of the
+-- input.
+--
+-- @
+-- stars []                      == 'empty'
+-- stars [(x, [])]               == 'vertex' x
+-- stars [(x, [y])]              == 'edge' x y
+-- stars [(x, ys)]               == 'star' x ys
+-- stars                         == 'overlays' . map (uncurry 'star')
+-- stars . 'adjacencyList'         == id
+-- 'overlay' (stars xs) (stars ys) == stars (xs ++ ys)
+-- @
+stars :: [(a, [a])] -> Graph a
+stars = overlays . map (uncurry star)
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -823,9 +809,8 @@ removeVertex v (G g) = G $ g >>= N.removeVertex1 v
 -- Complexity: /O(s)/ time, memory and size.
 --
 -- @
--- removeEdge x y ('edge' x y)       == 'vertices' [x, y]
+-- removeEdge x y ('edge' x y)       == 'vertices1' (x ':|' [y])
 -- removeEdge x y . removeEdge x y == removeEdge x y
--- removeEdge x y . 'removeVertex' x == 'removeVertex' x
 -- removeEdge 1 1 (1 * 1 * 2 * 2)  == 1 * 2 * 2
 -- removeEdge 1 2 (1 * 1 * 2 * 2)  == 1 * 1 + 2 * 2
 -- 'size' (removeEdge x y z)         <= 3 * 'size' z
@@ -833,17 +818,6 @@ removeVertex v (G g) = G $ g >>= N.removeVertex1 v
 {-# SPECIALISE removeEdge :: Int -> Int -> Graph Int -> Graph Int #-}
 removeEdge :: Eq a => a -> a -> Graph a -> Graph a
 removeEdge s t (G g) = G $ N.removeEdge s t <$> g
-
-  {-
--- TODO: Export
--- | Filter vertices in a subgraph context.
-{-# SPECIALISE filterContext :: Int -> (Int -> Bool) -> (Int -> Bool) -> Graph Int -> Graph Int #-}
-filterContext :: Eq a => a -> (a -> Bool) -> (a -> Bool) -> Graph a -> Graph a
-filterContext s i o g = maybe g go $ context (==s) g
-  where
-    go (Context is os) = induce (/=s) g `overlay` starTranspose s (filter i is)
-                                        `overlay` star          s (filter o os)
- -}
 
 -- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a
 -- given 'Graph'. If @y@ already exists, @x@ and @y@ will be merged.
@@ -969,8 +943,8 @@ focus f = foldg emptyFocus (vertexFocus f) overlayFoci connectFoci
 
 -- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
 -- could not be obtained.
-context :: (a -> Bool) -> Graph a -> Maybe (Context a)
-context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
+context :: (a -> Bool) -> Graph a -> Maybe (N.Context a)
+context p g | ok f      = Just $ N.Context (toList $ is f) (toList $ os f)
             | otherwise = Nothing
   where
     f = focus p g

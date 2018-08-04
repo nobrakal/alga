@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable, BangPatterns #-}
+{-# LANGUAGE CPP, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module     : Algebra.Graph.NonEmpty
@@ -32,15 +32,16 @@ module Algebra.Graph.NonEmpty (
     isSubgraphOf, (===),
 
     -- * Graph properties
-    size, hasVertex, hasEdge, hasSelfLoop, vertexCount, edgeCount, vertexList1,
-    edgeList, vertexSet, vertexIntSet, edgeSet,
+    size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList1, edgeList,
+    vertexSet, vertexIntSet, edgeSet,
 
     -- * Standard families of graphs
-    path1, circuit1, clique1, biclique1, star, starTranspose, tree, mesh1, torus1,
+    path1, circuit1, clique1, biclique1, star, stars1, starTranspose, tree,
+    mesh1, torus1,
 
     -- * Graph transformation
     removeVertex1, removeEdge, replaceVertex, mergeVertices, splitVertex1,
-    transpose, induce1, simplify,
+    transpose, induce1, simplify, Context (..), context,
 
     -- * Graph composition
     box,
@@ -70,10 +71,10 @@ import Data.Foldable (toList)
 
 import Algebra.Graph.Internal
 
-import qualified Data.IntSet           as IntSet
-import qualified Data.List.NonEmpty    as NonEmpty
-import qualified Data.Set              as Set
-import qualified Data.Tree             as Tree
+import qualified Data.IntSet                   as IntSet
+import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.Set                      as Set
+import qualified Data.Tree                     as Tree
 
 import qualified Algebra.Graph.AdjacencyMap    as AM
 import qualified Algebra.Graph.AdjacencyIntMap as AIM
@@ -268,9 +269,7 @@ vertices1 (x :| xs) = foldr (Overlay . vertex) (vertex x) xs
 -- 'edgeCount' . edges1   == 'Data.List.NonEmpty.length' . 'Data.List.NonEmpty.nub'
 -- @
 edges1 :: NonEmpty (a, a) -> NonEmptyGraph a
-edges1 (x :| xs) = foldr (Overlay . edgeTuple) (edgeTuple x) xs
-  where
-    edgeTuple = uncurry edge
+edges1 (x :| xs) = foldr (Overlay . uncurry edge) (uncurry edge x) xs
 
 -- | Overlay a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -367,6 +366,7 @@ size = foldg1 (const 1) (+) (+)
 hasVertex :: Eq a => a -> NonEmptyGraph a -> Bool
 hasVertex v = foldg1 (==v) (||) (||)
 
+-- TODO: Reduce code duplication with 'Algebra.Graph.hasEdge'.
 -- | Check if a graph contains a given edge.
 -- Complexity: /O(s)/ time.
 --
@@ -378,46 +378,17 @@ hasVertex v = foldg1 (==v) (||) (||)
 -- @
 {-# SPECIALISE hasEdge :: Int -> Int -> NonEmptyGraph Int -> Bool #-}
 hasEdge :: Eq a => a -> a -> NonEmptyGraph a -> Bool
-hasEdge s t =
-  if s == t -- We test if we search for a loop
-     then hasSelfLoop s
-     else maybe False hasEdge' . induce' -- if not, we convert the supplied @Graph a@ to a @Graph Bool@
-                                         -- where @s@ is @Vertex True@, @v@ is @Vertex False@ and other
-                                         -- vertices are removed.
-                                         -- Then we check if there is an edge from @True@ to @False@
-   where
-     hasEdge' g = case foldg1 v o c g of (_, _, r) -> r
-       where
-         v x                           = (x       , not x   , False                 )
-         o (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt,             xst || yst)
-         c (xs, xt, xst) (ys, yt, yst) = (xs || ys, xt || yt, xs && yt || xst || yst)
-     induce' = foldg1 (\x -> if x == s then Just (Vertex True)
-                                      else if x == t
-                                              then Just (Vertex False)
-                                              else Nothing)
-                     (k Overlay)
-                     (k Connect)
-       where
-         k _ x     Nothing     = x -- Constant folding to get rid of Empty leaves
-         k _ Nothing y         = y
-         k f (Just x) (Just y) = Just $ f x y
-
--- | Check if a graph contains a given loop.
--- Complexity: /O(s)/ time.
---
--- @
--- hasSelfLoop x ('vertex' y)       == False
--- hasSelfLoop x ('edge' x y)       == True
--- hasSelfLoop x                  == 'hasEdge' x x
--- hasSelfLoop x . 'removeEdge' x x == const False
--- @
-{-# SPECIALISE hasSelfLoop :: Int -> NonEmptyGraph Int -> Bool #-}
-hasSelfLoop :: Eq a => a -> NonEmptyGraph a -> Bool
-hasSelfLoop l = maybe False hasSelfLoop' . induce1 (==l)
+hasEdge s t g = hit g == Edge
   where
-    hasSelfLoop' (Overlay x y) = hasSelfLoop' x || hasSelfLoop' y
-    hasSelfLoop' Connect{} = True
-    hasSelfLoop' _ = False
+    hit (Vertex x   ) = if x == s then Tail else Miss
+    hit (Overlay x y) = case hit x of
+        Miss -> hit y
+        Tail -> max Tail (hit y)
+        Edge -> Edge
+    hit (Connect x y) = case hit x of
+        Miss -> hit y
+        Tail -> if hasVertex t y then Edge else Tail
+        Edge -> Edge
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -586,6 +557,20 @@ biclique1 xs ys = connect (vertices1 xs) (vertices1 ys)
 star :: a -> [a] -> NonEmptyGraph a
 star x []     = vertex x
 star x (y:ys) = connect (vertex x) (vertices1 $ y :| ys)
+
+-- | The /stars/ formed by overlaying a non-empty list of 'star's.
+-- Complexity: /O(L)/ time, memory and size, where /L/ is the total size of the
+-- input.
+--
+-- @
+-- stars1 ((x, [])  ':|' [])         == 'vertex' x
+-- stars1 ((x, [y]) ':|' [])         == 'edge' x y
+-- stars1 ((x, ys)  ':|' [])         == 'star' x ys
+-- stars1                          == 'overlays1' . fmap (uncurry 'star')
+-- 'overlay' (stars1 xs) (stars1 ys) == stars1 (xs <> ys)
+-- @
+stars1 :: NonEmpty (a, [a]) -> NonEmptyGraph a
+stars1 = overlays1 . fmap (uncurry star)
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -822,14 +807,6 @@ toNonEmpty = foldg1 (:| []) (<>) (<>)
 focus :: (a -> Bool) -> NonEmptyGraph a -> Focus a
 focus f = foldg1 (vertexFocus f) overlayFoci connectFoci
 
--- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
--- could not be obtained.
-context :: (a -> Bool) -> NonEmptyGraph a -> Maybe (Context a)
-context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
-            | otherwise = Nothing
-  where
-    f = focus p g
-
 -- | The /adjacency map/ of a graph: each vertex is associated with a set of its
 -- direct successors.
 -- Complexity: /O(s + m * log(m))/ time. Note that the number of edges /m/ of a
@@ -852,3 +829,15 @@ adjacencyIntMap = AIM.adjacencyIntMap . fromGraphAIM
 -- | Like 'fromGraphAM' but specialised for graphs with vertices of type 'Int'.
 fromGraphAIM :: NonEmptyGraph Int -> AIM.AdjacencyIntMap
 fromGraphAIM = foldg1 AIM.vertex AIM.overlay AIM.connect
+
+-- | The context of a subgraph comprises the input and output vertices outside
+-- the subgraph that are connected to the vertices inside the subgraph.
+data Context a = Context { inputs :: [a], outputs :: [a] }
+
+-- | Extract the context from a graph 'Focus'. Returns @Nothing@ if the focus
+-- could not be obtained.
+context :: (a -> Bool) -> NonEmptyGraph a -> Maybe (Context a)
+context p g | ok f      = Just $ Context (toList $ is f) (toList $ os f)
+            | otherwise = Nothing
+  where
+    f = focus p g

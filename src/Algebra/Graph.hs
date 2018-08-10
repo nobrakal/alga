@@ -431,7 +431,7 @@ isEmpty (G g) = isNothing g
 -- size x             >= 'vertexCount' x
 -- @
 size :: Graph a -> Int
-size = foldg 1 (const 1) (+) (+)
+size (G g) = maybe 1 N.size g
 
 -- | Check if a graph contains a given vertex. A convenient alias for `elem`.
 -- Complexity: /O(s)/ time.
@@ -623,7 +623,6 @@ fromGraphAIM = foldg AIM.empty AIM.vertex AIM.overlay AIM.connect
 path :: [a] -> Graph a
 path = G . fmap N.path1 . NL.nonEmpty
 
-
 -- | The /circuit/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
 -- given list.
@@ -636,7 +635,6 @@ path = G . fmap N.path1 . NL.nonEmpty
 -- @
 circuit :: [a] -> Graph a
 circuit = G . fmap N.circuit1 . NL.nonEmpty
-
 
 -- | The /clique/ on a list of vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the

@@ -280,6 +280,7 @@ overlay = Overlay
 -- @
 connect :: Graph a -> Graph a -> Graph a
 connect = Connect
+{-# INLINE [1] connect #-}
 
 -- | Construct the graph comprising a given list of isolated vertices.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -321,6 +322,7 @@ edges = overlays . map (uncurry edge)
 -- @
 overlays :: [Graph a] -> Graph a
 overlays = concatg overlay
+{-# INLINE [0] overlays #-}
 
 -- | Connect a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length
@@ -708,24 +710,7 @@ star x ys = connect (vertex x) (vertices ys)
 -- @
 stars :: [(a, [a])] -> Graph a
 stars = overlays . map (uncurry star)
-{-# NOINLINE [1] stars #-}
-
--- | The /stars/ formed by overlaying a list of 'star's. An inverse of
--- 'adjacencyList'.
--- Complexity: /O(L)/ time, memory and size, where /L/ is the total size of the
--- input.
---
--- @
--- stars []                      == 'empty'
--- stars [(x, [])]               == 'vertex' x
--- stars [(x, [y])]              == 'edge' x y
--- stars [(x, ys)]               == 'star' x ys
--- stars                         == 'overlays' . map (uncurry 'star')
--- stars . 'adjacencyList'         == id
--- 'overlay' (stars xs) (stars ys) == stars (xs ++ ys)
--- @
-stars :: [(a, [a])] -> Graph a
-stars = overlays . map (uncurry star)
+{-# INLINE stars #-}
 
 -- | The /star transpose/ formed by a list of leaves connected to a centre vertex.
 -- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the
@@ -921,10 +906,8 @@ transpose = foldg Empty Vertex Overlay (flip Connect)
 {-# NOINLINE [1] transpose #-}
 
 {-# RULES
-"transpose/connect"  forall g1 g2. transpose (connect g1 g2) = connect (transpose g2) (transpose g1)
-"transpose/vertex"   forall v. transpose (vertex v) = vertex v
-"transpose/vertices" forall xs. transpose (vertices xs) = vertices xs
-"transpose/stars" forall xs. transpose (stars xs) = overlays (map (transpose . uncurry star) xs)
+"transpose/overlays" forall xs. transpose (overlays xs) = overlays (map transpose xs)
+"transpose/connect"  forall g1 g2. transpose (connect g1 g2) = connect g2 g1
  #-}
 
 -- | Construct the /induced subgraph/ of a given graph by removing the

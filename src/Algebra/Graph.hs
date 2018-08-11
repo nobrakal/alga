@@ -322,7 +322,7 @@ edges = overlays . map (uncurry edge)
 -- @
 overlays :: [Graph a] -> Graph a
 overlays = concatg overlay
-{-# INLINE [0] overlays #-}
+{-# INLINE [2] overlays #-}
 
 -- | Connect a given list of graphs.
 -- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length

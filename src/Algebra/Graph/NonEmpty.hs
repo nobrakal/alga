@@ -63,12 +63,14 @@ import Data.List.NonEmpty (NonEmpty (..))
 
 import Algebra.Graph.Internal
 
-import qualified Algebra.Graph         as G
-import qualified Algebra.Graph.ToGraph as T
-import qualified Data.IntSet           as IntSet
-import qualified Data.List.NonEmpty    as NonEmpty
-import qualified Data.Set              as Set
-import qualified Data.Tree             as Tree
+import qualified Algebra.Graph                 as G
+import qualified Algebra.Graph.ToGraph         as T
+import qualified Algebra.Graph.AdjacencyMap    as AM
+import qualified Algebra.Graph.AdjacencyIntMap as AIM
+import qualified Data.IntSet                   as IntSet
+import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.Set                      as Set
+import qualified Data.Tree                     as Tree
 
 {-| Non-empty algebraic graphs, which are constructed using three primitives:
 'vertex', 'overlay' and 'connect'. See module "Algebra.Graph" for algebraic
@@ -212,8 +214,8 @@ ordInt :: Graph Int -> Graph Int -> Ordering
 ordInt x y = compare (T.toAdjacencyIntMap x) (T.toAdjacencyIntMap y)
 
 instance Applicative Graph where
-    pure  = Vertex
-    (<*>) = ap
+    pure    = Vertex
+    f <*> x = f >>= (<$> x)
 
 instance Monad Graph where
     return  = pure
@@ -398,8 +400,13 @@ foldg1 v o c = go
 -- isSubgraphOf x y                         ==> x <= y
 -- @
 isSubgraphOf :: Ord a => Graph a -> Graph a -> Bool
-isSubgraphOf x y = overlay x y == y
-{-# SPECIALISE isSubgraphOf :: Graph Int -> Graph Int -> Bool #-}
+isSubgraphOf x y = AM.isSubgraphOf (T.toAdjacencyMap x) (T.toAdjacencyMap y)
+{-# NOINLINE [1] isSubgraphOf #-}
+{-# RULES "isSubgraphOf/Int" isSubgraphOf = isSubgraphOfIntR #-}
+
+-- Like 'isSubgraphOf' but specialised for graphs with vertices of type 'Int'.
+isSubgraphOfIntR :: Graph Int -> Graph Int -> Bool
+isSubgraphOfIntR x y = AIM.isSubgraphOf (T.toAdjacencyIntMap x) (T.toAdjacencyIntMap y)
 
 -- | Structural equality on graph expressions.
 -- Complexity: /O(s)/ time.

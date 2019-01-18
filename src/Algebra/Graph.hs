@@ -261,7 +261,11 @@ ordIntR x y = compare (toAdjacencyIntMap x) (toAdjacencyIntMap y)
 
 instance Applicative Graph where
     pure  = Vertex
-    (<*>) = ap
+    (<*>) = apR
+
+apR :: Graph (a -> b) -> Graph a -> Graph b
+apR f x = bindR f (<$> x)
+{-# INLINE apR #-}
 
 instance Monad Graph where
     return = pure
@@ -481,8 +485,13 @@ foldg e v o c = go
 -- isSubgraphOf x y                         ==> x <= y
 -- @
 isSubgraphOf :: Ord a => Graph a -> Graph a -> Bool
-isSubgraphOf x y = overlay x y == y
-{-# SPECIALISE isSubgraphOf :: Graph Int -> Graph Int -> Bool #-}
+isSubgraphOf x y = AM.isSubgraphOf (toAdjacencyMap x) (toAdjacencyMap y)
+{-# NOINLINE [1] isSubgraphOf #-}
+{-# RULES "isSubgraphOf/Int" isSubgraphOf = isSubgraphOfIntR #-}
+
+-- Like 'isSubgraphOf' but specialised for graphs with vertices of type 'Int'.
+isSubgraphOfIntR :: Graph Int -> Graph Int -> Bool
+isSubgraphOfIntR x y = AIM.isSubgraphOf (toAdjacencyIntMap x) (toAdjacencyIntMap y)
 
 -- | Structural equality on graph expressions.
 -- Complexity: /O(s)/ time.
@@ -1197,6 +1206,10 @@ matchR e v p = \x -> if p x then v x else e
 -- their buildR form.
 "bindR/bindR" forall c f g.
     composeR (composeR c f) g = composeR c (f.g)
+
+-- Rewrite identity (which can appear in the rewriting of bindR) to a much efficient one
+"foldg/id"
+    foldg Empty Vertex Overlay Connect = id
  #-}
 
 -- Eliminate remaining rewrite-only functions.

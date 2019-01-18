@@ -421,6 +421,14 @@ connects :: [Graph a] -> Graph a
 connects = fromMaybe empty . foldr1Safe connect
 {-# INLINE [1] connects #-}
 
+foldgg :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
+foldgg e v o c = go
+  where
+    go Empty         = e
+    go (Vertex  x  ) = v x
+    go (Overlay x y) = o (go x) (go y) x y
+    go (Connect x y) = c (go x) (go y) x y
+
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- the provided functions to the leaves and internal nodes of the expression.
 -- The order of arguments is: empty, vertex, overlay and connect.

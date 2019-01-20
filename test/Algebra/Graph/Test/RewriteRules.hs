@@ -104,8 +104,8 @@ fmapFmapR g f h = fmap (h . f) g
 inspect $ 'fmapFmap1 === 'fmapFmapR
 
 bind2, bind2R :: (a -> Graph b) -> (b -> Graph c) -> Graph a -> Graph c
-bind2 f g x = x >>= f >>= g
-bind2R f g x = x >>= (\x -> f x >>= g)
+bind2 f g x = x `bindR` f `bindR` g
+bind2R f g x = x `bindR` (\x -> f x `bindR` g)
 
 inspect $ 'bind2 === 'bind2R
 

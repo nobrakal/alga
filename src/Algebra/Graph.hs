@@ -47,7 +47,9 @@ module Algebra.Graph (
     compose, box,
 
     -- * Context
-    Context (..), context
+    Context (..), context,
+
+    bindR
     ) where
 
 import Prelude ()
@@ -1172,12 +1174,12 @@ this line: http://hackage.haskell.org/package/base/docs/src/GHC.Base.html#mapFB.
 type Foldg a = forall b. b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> b
 
 buildR :: Foldg a -> Graph a
-buildR g = g Empty Vertex (const2 Overlay) (const2 Connect)
+buildR g = g Empty Vertex (const2R Overlay) (const2R Connect)
 {-# INLINE [1] buildR #-}
 
-const2 :: (a -> b -> c) -> a -> b -> d -> e -> c
-const2 f a b _ _ = f a b
-{-# INLINE const2 #-}
+const2R :: (a -> b -> c) -> a -> b -> d -> e -> c
+const2R f a b _ _ = f a b
+{-# INLINE [0] const2R #-}
 
 composeR :: (b -> c) -> (a -> b) -> a -> c
 composeR = (.)
@@ -1256,7 +1258,7 @@ apply2FirstR g f a b x y = g (\a' b' -> f a' b' x y) a b
 {-# RULES
 -- Fuse a foldg followed by a buildR
 "foldg/buildR" forall e v o c (g :: Foldg a).
-    foldg e v o c (buildR g) = g e v (const2 o) (const2 c)
+    foldg e v o c (buildR g) = g e v (const2R o) (const2R c)
 
 "foldgg/buildR" forall e v o c (g :: Foldg a).
     foldgg e v o c (buildR g) = g e v o c
@@ -1268,7 +1270,7 @@ apply2FirstR g f a b x y = g (\a' b' -> f a' b' x y) a b
 
 -- Rewrite identity (which can appear in the rewriting of bindR) to a much efficient one
 "foldg/id"
-    foldg Empty Vertex Overlay Connect = id
+    toGraphR Empty Vertex (const2R Overlay) (const2R Connect) = id
  #-}
 
 -- Eliminate remaining rewrite-only functions.

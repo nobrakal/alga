@@ -18,6 +18,7 @@ import Algebra.Graph.Internal
 
 import Test.Inspection
 
+{-
 -- Naming convention: we use the suffix "R" to indicate the desired outcome of
 -- rewrite rules, and suffices "1", "2", etc. to indicate initial expressions.
 
@@ -118,9 +119,11 @@ ovAp  x y z = overlay x y <*> z
 ovApR x y z = overlay (x <*> z) (y <*> z)
 
 inspect $ 'ovAp =/= 'ovApR
-
+-}
+{-
 ovAp', ovApR' :: Graph (a -> b) -> Graph (a -> b) -> Graph a -> Graph b
 ovAp'  x y z = overlay x y <*> z
-ovApR' x y z = overlay (x >>= (<$> z)) (y >>= (<$> z))
+ovApR' x y z = overlay (x `bindR` (<$> z)) (y `bindR` (<$> z))
 
 inspect $ 'ovAp' === 'ovApR'
+-}

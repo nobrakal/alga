@@ -129,20 +129,14 @@ hasEdgeF :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
 hasEdgeF f g s t = hasEdge s t (fmap f g)
 
 hasEdgeFR :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
-hasEdgeFR f g s t = Edge ==
-  foldgg
-    Miss
-    hitv
-    hitov
-    hitco
-    g
+hasEdgeFR f g s t = Edge == foldgg Miss v o c g
   where
-    hitv x = if (f x) == s then Tail else Miss
-    hitov x y _ _ = case x of
+    v x = if (f x) == s then Tail else Miss
+    o x y _ _ = case x of
         Miss -> y
         Tail -> max Tail y
         Edge -> Edge
-    hitco x y _ yy = case x of
+    c x y _ yy = case x of
         Miss -> y
         Tail -> if foldg False (\x -> f x == t) (||) (||) yy then Edge else Tail
         Edge -> Edge

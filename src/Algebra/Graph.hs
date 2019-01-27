@@ -567,18 +567,17 @@ hasVertex x = foldg False (==x) (||) (||)
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
-hasEdge s t = (==) Edge .
-  foldgg
-    Miss
-    (\x -> if x == s then Tail else Miss)
-    (\x y _ _ -> case x of
+hasEdge s t = (==) Edge . foldgg Miss v o c
+    where
+      v x = if x == s then Tail else Miss
+      o x y _ _ = case x of
         Miss -> y
         Tail -> max Tail y
-        Edge -> Edge)
-    (\x y _ yy -> case x of
+        Edge -> Edge
+      c x y _ yy = case x of
         Miss -> y
         Tail -> if hasVertex t yy then Edge else Tail
-        Edge -> Edge)
+        Edge -> Edge
 {-# INLINE hasEdge #-}
 {-- # SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 

@@ -1244,17 +1244,17 @@ apply2FirstR :: ((b -> b -> b) -> (b -> b -> b)) -> (b -> b -> Graph a -> Graph 
 apply2FirstR g f a b x y = g (\a b -> f a b x y) a b
 {-# INLINE apply2FirstR #-}
 
-bbindOne :: (a -> Graph b) -> Graph a -> Graph b
-bbindOne f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
+buildBindR :: (a -> Graph b) -> Graph a -> Graph b
+buildBindR f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
   where
     bind2R = foldg Empty f Overlay Connect
     {-# INLINE bind2R #-}
-{-# INLINE bbindOne #-}
+{-# INLINE buildBindR #-}
 
 -- These rules transform functions into their buildR equivalents.
 {-# RULES
 "buildR/bindR" forall (f::a -> Graph b) g.
-    bindR g f = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (foldg Empty f Overlay Connect x) (foldg Empty f Overlay Connect y)) (\a b x y -> c a b (foldg Empty f Overlay Connect x) (bbindOne f y)) g)
+    bindR g f = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (buildBindR f x) (buildBindR f y)) (\a b x y -> c a b (buildBindR f x) (buildBindR f y)) g)
 
 "buildR/induce" [~1] forall p g.
     induce p g = buildR (\e v o c -> foldgg e (matchR e v p) o c g)

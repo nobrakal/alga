@@ -144,7 +144,7 @@ hasEdgeFR f g s t = Edge ==
         Edge -> Edge
     hitco x y _ yy = case x of
         Miss -> y
-        Tail -> if hasVertex t (fmap f yy) then Edge else Tail
+        Tail -> if foldg False (\x -> f x == t) (||) (||) yy then Edge else Tail
         Edge -> Edge
 
 inspect $ 'hasEdgeF === 'hasEdgeFR

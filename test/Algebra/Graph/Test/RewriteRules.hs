@@ -18,7 +18,6 @@ import Algebra.Graph.Internal
 
 import Test.Inspection
 
-{-
 -- Naming convention: we use the suffix "R" to indicate the desired outcome of
 -- rewrite rules, and suffices "1", "2", etc. to indicate initial expressions.
 
@@ -119,11 +118,33 @@ ovAp  x y z = overlay x y <*> z
 ovApR x y z = overlay (x <*> z) (y <*> z)
 
 inspect $ 'ovAp =/= 'ovApR
--}
-{-
+
 ovAp', ovApR' :: Graph (a -> b) -> Graph (a -> b) -> Graph a -> Graph b
 ovAp'  x y z = overlay x y <*> z
 ovApR' x y z = overlay (x `bindR` (<$> z)) (y `bindR` (<$> z))
 
 inspect $ 'ovAp' === 'ovApR'
--}
+
+hasEdgeF :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
+hasEdgeF f g s t = hasEdge s t (fmap f g)
+
+hasEdgeFR :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
+hasEdgeFR f g s t = Edge ==
+  foldgg
+    Miss
+    hitv
+    hitov
+    hitco
+    g
+  where
+    hitv x = if (f x) == s then Tail else Miss
+    hitov x y _ _ = case x of
+        Miss -> y
+        Tail -> max Tail y
+        Edge -> Edge
+    hitco x y _ yy = case x of
+        Miss -> y
+        Tail -> if hasVertex t (fmap f yy) then Edge else Tail
+        Edge -> Edge
+
+inspect $ 'hasEdgeF === 'hasEdgeFR

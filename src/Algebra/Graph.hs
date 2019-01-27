@@ -26,7 +26,7 @@ module Algebra.Graph (
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
 
     -- * Graph folding
-    foldg,
+    foldg, foldgg,
 
     -- * Relations on graphs
     isSubgraphOf, (===),
@@ -436,6 +436,16 @@ foldgg e v o c = go
     go (Connect x y) = c (go x) (go y) x y
 {-# INLINE [0] foldgg #-}
 
+{-
+foldggb :: (c -> Graph a) -> b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph c -> b
+foldggb f e v o c = go
+  where
+    go Empty         = e
+    go (Vertex  x  ) = foldgg e v o c $ f x
+    go (Overlay x y) = o (go x) (go y) (bindR x f) (bindR y f)
+    go (Connect x y) = c (go x) (go y) (bindR x f) (bindR y f)
+-}
+
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- the provided functions to the leaves and internal nodes of the expression.
 -- The order of arguments is: empty, vertex, overlay and connect.
@@ -555,7 +565,8 @@ size = foldg 1 (const 1) (+) (+)
 -- @
 hasVertex :: Eq a => a -> Graph a -> Bool
 hasVertex x = foldg False (==x) (||) (||)
-{-# SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
+{-# INLINE hasVertex #-}
+{-- # SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
 
 -- | Check if a graph contains a given edge.
 -- Complexity: /O(s)/ time.
@@ -571,20 +582,17 @@ hasEdge :: Eq a => a -> a -> Graph a -> Bool
 hasEdge s t = (==) Edge .
   foldgg
     Miss
-    hitv
-    hitov
-    hitco
-  where
-    hitv x = if x == s then Tail else Miss
-    hitov x y _ _ = case x of
+    (\x -> if x == s then Tail else Miss)
+    (\x y _ _ -> case x of
         Miss -> y
         Tail -> max Tail y
-        Edge -> Edge
-    hitco x y _ yy = case x of
+        Edge -> Edge)
+    (\x y _ yy -> case x of
         Miss -> y
         Tail -> if hasVertex t yy then Edge else Tail
-        Edge -> Edge
-{-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
+        Edge -> Edge)
+{-# INLINE hasEdge #-}
+{-- # SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 
 -- | The number of vertices in a graph.
 -- Complexity: /O(s * log(n))/ time.
@@ -1233,13 +1241,20 @@ toGraphR e v o c = foldgg e v o c
 {-# INLINE [0] toGraphR #-}
 
 apply2FirstR :: ((b -> b -> b) -> (b -> b -> b)) -> (b -> b -> Graph a -> Graph a -> b) -> b -> b -> Graph a -> Graph a -> b
-apply2FirstR g f a b x y = g (\a' b' -> f a' b' x y) a b
+apply2FirstR g f a b x y = g (\a b -> f a b x y) a b
 {-# INLINE apply2FirstR #-}
+
+bbindOne :: (a -> Graph b) -> Graph a -> Graph b
+bbindOne f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
+  where
+    bind2R = foldg Empty f Overlay Connect
+    {-# INLINE bind2R #-}
+{-# INLINE bbindOne #-}
 
 -- These rules transform functions into their buildR equivalents.
 {-# RULES
 "buildR/bindR" forall (f::a -> Graph b) g.
-    bindR g f = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (x >>= f) (y >>= f)) (\a b x y -> c a b (x >>= f) (y >>= f)) g)
+    bindR g f = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (foldg Empty f Overlay Connect x) (foldg Empty f Overlay Connect y)) (\a b x y -> c a b (foldg Empty f Overlay Connect x) (bbindOne f y)) g)
 
 "buildR/induce" [~1] forall p g.
     induce p g = buildR (\e v o c -> foldgg e (matchR e v p) o c g)

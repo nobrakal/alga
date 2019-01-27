@@ -47,9 +47,7 @@ module Algebra.Graph (
     compose, box,
 
     -- * Context
-    Context (..), context,
-
-    bindR
+    Context (..), context
     ) where
 
 import Prelude ()
@@ -435,16 +433,6 @@ foldgg e v o c = go
     go (Overlay x y) = o (go x) (go y) x y
     go (Connect x y) = c (go x) (go y) x y
 {-# INLINE [0] foldgg #-}
-
-{-
-foldggb :: (c -> Graph a) -> b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph c -> b
-foldggb f e v o c = go
-  where
-    go Empty         = e
-    go (Vertex  x  ) = foldgg e v o c $ f x
-    go (Overlay x y) = o (go x) (go y) (bindR x f) (bindR y f)
-    go (Connect x y) = c (go x) (go y) (bindR x f) (bindR y f)
--}
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- the provided functions to the leaves and internal nodes of the expression.
@@ -1197,45 +1185,6 @@ matchR :: b -> (a -> b) -> (a -> Bool) -> a -> b
 matchR e v p = \x -> if p x then v x else e
 {-# INLINE [0] matchR #-}
 
-{-
-hasHit' :: Eq a => a -> a -> Graph a -> Hit
-hasHit' s t =
-  foldgg
-    Miss
-    (\x -> if x == s then Tail else Miss)
-    hitov
-    hitco
-  where
-    hitov x y _ _ = case x of
-        Miss -> y
-        Tail -> max Tail y
-        Edge -> Edge
-    hitco x y _ yy = case x of
-        Miss -> y
-        Tail -> if hasVertex t yy then Edge else Tail
-        Edge -> Edge
-
-hasHitB' :: Eq b => b -> b -> (a -> Graph b) -> Graph a -> Hit
-hasHitB' s t f =
-  foldgg
-    Miss
-    (\x -> foldgg Miss hitv hitov hitco (f x))
-    hitov
-    (bindArgsR hitco f)
-  where
-    hitv x =  if x == s then Tail else Miss
-    hitov x y _ _ =
-      case x of
-        Miss -> y
-        Tail -> max Tail y
-        Edge -> Edge
-    hitco x y _ yy =
-      case x of
-        Miss -> y
-        Tail -> if hasVertex t yy then Edge else Tail
-        Edge -> Edge
--}
-
 toGraphR :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
 toGraphR e v o c = foldgg e v o c
 {-# INLINE [0] toGraphR #-}
@@ -1248,7 +1197,6 @@ buildBindR :: (a -> Graph b) -> Graph a -> Graph b
 buildBindR f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
   where
     bind2R = foldg Empty f Overlay Connect
-    {-# INLINE bind2R #-}
 {-# INLINE buildBindR #-}
 
 -- These rules transform functions into their buildR equivalents.

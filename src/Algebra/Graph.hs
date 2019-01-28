@@ -1200,24 +1200,22 @@ matchR :: b -> (a -> b) -> (a -> Bool) -> a -> b
 matchR e v p = \x -> if p x then v x else e
 {-# INLINE [0] matchR #-}
 
-toGraphR :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
-toGraphR e v o c = paragraph e v o c
-{-# INLINE toGraphR #-}
-
 apply2FirstR :: ((b -> b -> b) -> (b -> b -> b)) -> (b -> b -> Graph a -> Graph a -> b) -> b -> b -> Graph a -> Graph a -> b
 apply2FirstR g f a b x y = g (\a b -> f a b x y) a b
 {-# INLINE apply2FirstR #-}
 
+-- Bind already in its "buildR" form (to avoid a rewriting circle with "buildR/bindR")
 buildBindR :: (a -> Graph b) -> Graph a -> Graph b
-buildBindR f g = buildR (\e v o c -> paragraph e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
+buildBindR f g = buildR (\e v o c -> paragraph e (composeR (paragraph e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
   where
+    -- bind without rewrite rules (to avoid a rewriting circle with "buildR/bindR")
     bind2R = foldg Empty f Overlay Connect
 {-# INLINE buildBindR #-}
 
 -- These rules transform functions into their buildR equivalents.
 {-# RULES
 "buildR/bindR" forall (f::a -> Graph b) g.
-    bindR g f = buildR (\e v o c -> paragraph e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (buildBindR f x) (buildBindR f y)) (\a b x y -> c a b (buildBindR f x) (buildBindR f y)) g)
+    bindR g f = buildR (\e v o c -> paragraph e (composeR (paragraph e v o c) f) (\a b x y -> o a b (buildBindR f x) (buildBindR f y)) (\a b x y -> c a b (buildBindR f x) (buildBindR f y)) g)
 
 "buildR/induce" [~1] forall p g.
     induce p g = buildR (\e v o c -> paragraph e (matchR e v p) o c g)

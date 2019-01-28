@@ -443,6 +443,11 @@ paragraph e v o c = go
     paragraph e v o c (Overlay x y) = o (paragraph e v o c x) (paragraph e v o c y) x y
 "paragraph/Connect" forall e v o c x y.
     paragraph e v o c (Connect x y) = c (paragraph e v o c x) (paragraph e v o c y) x y
+
+-- "paragraph/overlays" forall e v o c xs.
+--    paragraph e v o c (overlays xs) = fromMaybe e (foldr (maybeF o . foldg e v o c) Nothing xs)
+-- "paragraph/connects" forall e v o c xs.
+--    paragraph e v o c (connects xs) = fromMaybe e (foldr (maybeF c . foldg e v o c) Nothing xs)
  #-}
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
@@ -1197,7 +1202,7 @@ matchR e v p = \x -> if p x then v x else e
 
 toGraphR :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
 toGraphR e v o c = paragraph e v o c
-{-# INLINE [0] toGraphR #-}
+{-# INLINE toGraphR #-}
 
 apply2FirstR :: ((b -> b -> b) -> (b -> b -> b)) -> (b -> b -> Graph a -> Graph a -> b) -> b -> b -> Graph a -> Graph a -> b
 apply2FirstR g f a b x y = g (\a b -> f a b x y) a b
@@ -1243,7 +1248,7 @@ buildBindR f g = buildR (\e v o c -> paragraph e (composeR (toGraphR e v o c) f)
 
 -- Rewrite identity (which can appear in the rewriting of bindR) to a much efficient one
 "foldg/id"
-    toGraphR Empty Vertex (const2R Overlay) (const2R Connect) = id
+    paragraph Empty Vertex (const2R Overlay) (const2R Connect) = id
  #-}
 
 -- Eliminate remaining rewrite-only functions.

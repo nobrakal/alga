@@ -119,17 +119,19 @@ ovApR x y z = overlay (x <*> z) (y <*> z)
 
 inspect $ 'ovAp =/= 'ovApR
 
+{-
 ovAp', ovApR' :: Graph (a -> b) -> Graph (a -> b) -> Graph a -> Graph b
 ovAp'  x y z = overlay x y <*> z
 ovApR' x y z = overlay (x >>= (<$> z)) (y >>= (<$> z))
 
 inspect $ 'ovAp' === 'ovApR'
+-}
 
 hasEdgeF :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
 hasEdgeF f g s t = hasEdge s t (fmap f g)
 
 hasEdgeFR :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
-hasEdgeFR f g s t = Edge == foldgg Miss v o c g
+hasEdgeFR f g s t = Edge == paragraph Miss v o c g
   where
     v x = if (f x) == s then Tail else Miss
     o x y _ _ = case x of

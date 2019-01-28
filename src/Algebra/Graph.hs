@@ -26,7 +26,7 @@ module Algebra.Graph (
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
 
     -- * Graph folding
-    foldg, foldgg,
+    foldg, paragraph,
 
     -- * Relations on graphs
     isSubgraphOf, (===),
@@ -425,14 +425,25 @@ connects :: [Graph a] -> Graph a
 connects = fromMaybe empty . foldr1Safe connect
 {-# INLINE [1] connects #-}
 
-foldgg :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
-foldgg e v o c = go
+paragraph :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
+paragraph e v o c = go
   where
     go Empty         = e
     go (Vertex  x  ) = v x
     go (Overlay x y) = o (go x) (go y) x y
     go (Connect x y) = c (go x) (go y) x y
-{-# INLINE [0] foldgg #-}
+{-# INLINE [0] paragraph #-}
+
+{-# RULES
+"paragraph/Empty"   forall e v o c.
+    paragraph e v o c Empty = e
+"paragraph/Vertex"  forall e v o c x.
+    paragraph e v o c (Vertex x) = v x
+"paragraph/Overlay" forall e v o c x y.
+    paragraph e v o c (Overlay x y) = o (paragraph e v o c x) (paragraph e v o c y) x y
+"paragraph/Connect" forall e v o c x y.
+    paragraph e v o c (Connect x y) = c (paragraph e v o c x) (paragraph e v o c y) x y
+ #-}
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- the provided functions to the leaves and internal nodes of the expression.
@@ -567,7 +578,7 @@ hasVertex x = foldg False (==x) (||) (||)
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
-hasEdge s t = (==) Edge . foldgg Miss v o c
+hasEdge s t = (==) Edge . paragraph Miss v o c
     where
       v x = if x == s then Tail else Miss
       o x y _ _ = case x of
@@ -1185,7 +1196,7 @@ matchR e v p = \x -> if p x then v x else e
 {-# INLINE [0] matchR #-}
 
 toGraphR :: b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> Graph a -> b
-toGraphR e v o c = foldgg e v o c
+toGraphR e v o c = paragraph e v o c
 {-# INLINE [0] toGraphR #-}
 
 apply2FirstR :: ((b -> b -> b) -> (b -> b -> b)) -> (b -> b -> Graph a -> Graph a -> b) -> b -> b -> Graph a -> Graph a -> b
@@ -1193,7 +1204,7 @@ apply2FirstR g f a b x y = g (\a b -> f a b x y) a b
 {-# INLINE apply2FirstR #-}
 
 buildBindR :: (a -> Graph b) -> Graph a -> Graph b
-buildBindR f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
+buildBindR f g = buildR (\e v o c -> paragraph e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (bind2R x) (bind2R y)) (\a b x y -> c a b (bind2R x) (bind2R y)) g)
   where
     bind2R = foldg Empty f Overlay Connect
 {-# INLINE buildBindR #-}
@@ -1201,19 +1212,19 @@ buildBindR f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\
 -- These rules transform functions into their buildR equivalents.
 {-# RULES
 "buildR/bindR" forall (f::a -> Graph b) g.
-    bindR g f = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (buildBindR f x) (buildBindR f y)) (\a b x y -> c a b (buildBindR f x) (buildBindR f y)) g)
+    bindR g f = buildR (\e v o c -> paragraph e (composeR (toGraphR e v o c) f) (\a b x y -> o a b (buildBindR f x) (buildBindR f y)) (\a b x y -> c a b (buildBindR f x) (buildBindR f y)) g)
 
 "buildR/induce" [~1] forall p g.
-    induce p g = buildR (\e v o c -> foldgg e (matchR e v p) o c g)
+    induce p g = buildR (\e v o c -> paragraph e (matchR e v p) o c g)
 
 "buildR/foldg(fc)" [~1] forall (f :: forall b. (b -> b -> b) -> (b -> b -> b)) g.
-    foldg Empty Vertex Overlay (f Connect) g = buildR (\e v o c -> foldgg e v o (apply2FirstR f c) g)
+    foldg Empty Vertex Overlay (f Connect) g = buildR (\e v o c -> paragraph e v o (apply2FirstR f c) g)
 
 "buildR/foldg(fo)" [~1] forall (f :: forall b. (b -> b -> b) -> (b -> b -> b)) g.
-    foldg Empty Vertex (f Overlay) Connect g = buildR (\e v o c -> foldgg e v (apply2FirstR f o) c g)
+    foldg Empty Vertex (f Overlay) Connect g = buildR (\e v o c -> paragraph e v (apply2FirstR f o) c g)
 
 "buildR/foldg(fo)(hc)" [~1] forall (f :: forall b. (b -> b -> b) -> (b -> b -> b)) (h :: forall b. (b -> b -> b) -> (b -> b -> b)) g.
-    foldg Empty Vertex (f Overlay) (h Connect) g = buildR (\e v o c -> foldgg e v (apply2FirstR f o) (apply2FirstR h c) g)
+    foldg Empty Vertex (f Overlay) (h Connect) g = buildR (\e v o c -> paragraph e v (apply2FirstR f o) (apply2FirstR h c) g)
  #-}
 
 -- Rewrite rules for fusion.
@@ -1222,8 +1233,8 @@ buildBindR f g = buildR (\e v o c -> foldgg e (composeR (toGraphR e v o c) f) (\
 "foldg/buildR" forall e v o c (g :: Foldg a).
     foldg e v o c (buildR g) = g e v (const2R o) (const2R c)
 
-"foldgg/buildR" forall e v o c (g :: Foldg a).
-    foldgg e v o c (buildR g) = g e v o c
+"paragraph/buildR" forall e v o c (g :: Foldg a).
+    paragraph e v o c (buildR g) = g e v o c
 
 -- Fuse composeR's. This occurs when two adjacent 'bindR' were rewritted into
 -- their buildR form.

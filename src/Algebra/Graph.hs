@@ -434,20 +434,30 @@ paragraph e v o c = go
     go (Connect x y) = c (go x) (go y) x y
 {-# INLINE [0] paragraph #-}
 
+-- paramporphism for list
+-- Use appEndo ?
+paral :: (a -> [a] -> b -> b) -> b -> [a] ->  b
+paral f z = go
+  where
+    go [] = z
+    go (x:xs) = f x xs (go xs)
+
 {-# RULES
 "paragraph/Empty"   forall e v o c.
-    paragraph e v o c Empty = e
+  paragraph e v o c Empty = e
 "paragraph/Vertex"  forall e v o c x.
-    paragraph e v o c (Vertex x) = v x
+  paragraph e v o c (Vertex x) = v x
 "paragraph/Overlay" forall e v o c x y.
-    paragraph e v o c (Overlay x y) = o (paragraph e v o c x) (paragraph e v o c y) x y
+  paragraph e v o c (Overlay x y) = o (paragraph e v o c x) (paragraph e v o c y) x y
 "paragraph/Connect" forall e v o c x y.
-    paragraph e v o c (Connect x y) = c (paragraph e v o c x) (paragraph e v o c y) x y
+  paragraph e v o c (Connect x y) = c (paragraph e v o c x) (paragraph e v o c y) x y
 
--- "paragraph/overlays" forall e v o c xs.
---    paragraph e v o c (overlays xs) = fromMaybe e (foldr (maybeF o . foldg e v o c) Nothing xs)
--- "paragraph/connects" forall e v o c xs.
---    paragraph e v o c (connects xs) = fromMaybe e (foldr (maybeF c . foldg e v o c) Nothing xs)
+"paragraph/overlays" forall e v o c xs.
+  paragraph e v o c (overlays xs) =
+    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> o (paragraph e v o c a) b a (overlays xs)) b) Nothing xs)
+"paragraph/connects" forall e v o c xs.
+  paragraph e v o c (connects xs) =
+    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> c (paragraph e v o c a) b a (overlays xs)) b) Nothing xs)
  #-}
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying

@@ -441,6 +441,7 @@ paral f z = go
   where
     go [] = z
     go (x:xs) = f x xs (go xs)
+{-# INLINE [0] paral #-}
 
 {-# RULES
 "paragraph/Empty"   forall e v o c.
@@ -594,16 +595,16 @@ hasVertex x = foldg False (==x) (||) (||)
 -- @
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
 hasEdge s t = (==) Edge . paragraph Miss v o c
-    where
-      v x = if x == s then Tail else Miss
-      o x y _ _ = case x of
-        Miss -> y
-        Tail -> max Tail y
-        Edge -> Edge
-      c x y _ yy = case x of
-        Miss -> y
-        Tail -> if hasVertex t yy then Edge else Tail
-        Edge -> Edge
+  where
+    v x = if x == s then Tail else Miss
+    o x y _ _ = case x of
+      Miss -> y
+      Tail -> max Tail y
+      Edge -> Edge
+    c x y _ yy = case x of
+      Miss -> y
+      Tail -> if hasVertex t yy then Edge else Tail
+      Edge -> Edge
 {-# INLINE hasEdge #-}
 {-- # SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 

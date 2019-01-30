@@ -1193,9 +1193,9 @@ this line: http://hackage.haskell.org/package/base/docs/src/GHC.Base.html#mapFB.
 * The "bindR/bindR" rule optimises compositions of multiple bindR's.
 -}
 
-type Foldg a = forall b. b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> b
+type Paragraph a = forall b. b -> (a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> (b -> b -> Graph a -> Graph a -> b) -> b
 
-buildR :: Foldg a -> Graph a
+buildR :: Paragraph a -> Graph a
 buildR g = g Empty Vertex (const2R Overlay) (const2R Connect)
 {-# INLINE [1] buildR #-}
 
@@ -1247,10 +1247,10 @@ apply2LR o f = \a b x y -> o a b (f x) (f y)
 -- Rewrite rules for fusion.
 {-# RULES
 -- Fuse a foldg followed by a buildR
-"foldg/buildR" forall e v o c (g :: Foldg a).
+"foldg/buildR" forall e v o c (g :: Paragraph a).
     foldg e v o c (buildR g) = g e v (const2R o) (const2R c)
 
-"paragraph/buildR" forall e v o c (g :: Foldg a).
+"paragraph/buildR" forall e v o c (g :: Paragraph a).
     paragraph e v o c (buildR g) = g e v o c
 
 -- Fuse composeR's. This occurs when two adjacent 'bindR' were rewritted into

@@ -138,7 +138,7 @@ hasEdgeFR f g s t = Edge == paragraphR Miss v (B o) (R (cp,c1,c2)) g
       Miss -> y
       Tail -> max Tail y
       Edge -> Edge
-    cp x = x == Tail
+    cp x = x /= Tail
     c1 x y =
       case x of
         Miss -> y

@@ -432,31 +432,27 @@ paragraph e v o c = go
     go (Vertex  x  ) = v x
     go (Overlay x y) = o (go x) (go y) x y
     go (Connect x y) = c (go x) (go y) x y
-{-# INLINE [0] paragraph #-}
+{-# INLINE paragraph #-}
 
 data Combination a b =
     B (b -> b -> b)
-  | R (b -> Bool, b -> b -> b, b -> Graph a -> b)
   | L (b -> Bool, b -> b -> b, Graph a -> b -> b)
+  | R (b -> Bool, b -> b -> b, b -> Graph a -> b)
+
 
 switchCombi :: Combination a b -> b -> b -> Graph a -> Graph a -> b
 switchCombi (B f) = \a b _ _ -> f a b
-switchCombi (R (pred,c1,c2)) = \a b _ x ->
-  if pred a
-  then c1 a b
-  else c2 a x
 switchCombi (L (pred,c1,c2)) = \a b x _ ->
   if pred b
   then c1 a b
   else c2 x b
+switchCombi (R (pred,c1,c2)) = \a b _ x ->
+  if pred a
+  then c1 a b
+  else c2 a x
 
 paragraphR :: b -> (a -> b) -> Combination a b -> Combination a b -> Graph a -> b
-paragraphR e v o c = go
-  where
-    go Empty         = e
-    go (Vertex  x  ) = v x
-    go (Overlay x y) = switchCombi o (go x) (go y) x y
-    go (Connect x y) = switchCombi c (go x) (go y) x y
+paragraphR e v o c = paragraph e v (switchCombi o) (switchCombi c)
 {-# INLINE [0] paragraphR #-}
 
 -- paramporphism for list
@@ -468,7 +464,7 @@ paral f z = go
     go (x:xs) = f x xs (go xs)
 {-# INLINE [0] paral #-}
 
-{-# RULES
+{- # RULES
 "paragraph/Empty"   forall e v o c.
   paragraph e v o c Empty = e
 "paragraph/Vertex"  forall e v o c x.
@@ -626,7 +622,7 @@ hasEdge s t = (==) Edge . paragraphR Miss v (B o) (R (cp,c1,c2))
       Miss -> y
       Tail -> max Tail y
       Edge -> Edge
-    cp x = x == Tail
+    cp x = x /= Tail
     c1 x y =
       case x of
         Miss -> y

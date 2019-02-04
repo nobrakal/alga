@@ -131,18 +131,22 @@ hasEdgeF :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
 hasEdgeF f g s t = hasEdge s t (fmap f g)
 
 hasEdgeFR :: Eq b => (a -> b) -> Graph a -> b -> b -> Bool
-hasEdgeFR f g s t = Edge == paragraphR Miss v (B o) (R (cp,c1,c2)) g
+hasEdgeFR f g s t = Edge == go g
   where
-    v x = if (f x) == s then Tail else Miss
-    o x y = case x of
-      Miss -> y
-      Tail -> max Tail y
-      Edge -> Edge
-    cp x = x /= Tail
-    c1 x y =
-      case x of
-        Miss -> y
-        _ -> x
-    c2 _ y = if foldg False (\x -> f x == t) (||) (||) y then Edge else Tail
+    go Empty         = Miss
+    go (Vertex  x  ) = if (f x) == s then Tail else Miss
+    go (Overlay x y) =
+      case go x of
+        Miss -> go y
+        Tail -> max Tail (go y)
+        Edge -> Edge
+    go (Connect x y) =
+      let gx = go x in
+        if gx /= Tail
+        then
+          case gx of
+            Miss -> go y
+            _ -> gx
+        else if foldg False (\x -> f x == t) (||) (||) y then Edge else Tail
 
 inspect $ 'hasEdgeF === 'hasEdgeFR

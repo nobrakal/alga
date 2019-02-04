@@ -439,7 +439,6 @@ data Combination a b =
   | L (b -> Bool, b -> b -> b, Graph a -> b -> b)
   | R (b -> Bool, b -> b -> b, b -> Graph a -> b)
 
-
 switchCombi :: Combination a b -> b -> b -> Graph a -> Graph a -> b
 switchCombi (B f) = \a b _ _ -> f a b
 switchCombi (L (pred,c1,c2)) = \a b x _ ->
@@ -464,22 +463,22 @@ paral f z = go
     go (x:xs) = f x xs (go xs)
 {-# INLINE [0] paral #-}
 
-{- # RULES
+{-# RULES
 "paragraph/Empty"   forall e v o c.
-  paragraph e v o c Empty = e
+  paragraphR e v o c Empty = e
 "paragraph/Vertex"  forall e v o c x.
-  paragraph e v o c (Vertex x) = v x
+  paragraphR e v o c (Vertex x) = v x
 "paragraph/Overlay" forall e v o c x y.
-  paragraph e v o c (Overlay x y) = o (paragraph e v o c x) (paragraph e v o c y) x y
+  paragraphR e v o c (Overlay x y) = switchCombi o (paragraphR e v o c x) (paragraphR e v o c y) x y
 "paragraph/Connect" forall e v o c x y.
-  paragraph e v o c (Connect x y) = c (paragraph e v o c x) (paragraph e v o c y) x y
+  paragraphR e v o c (Connect x y) = switchCombi c (paragraphR e v o c x) (paragraphR e v o c y) x y
 
 "paragraph/overlays" forall e v o c xs.
-  paragraph e v o c (overlays xs) =
-    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> o (paragraph e v o c a) b a (overlays xs)) b) Nothing xs)
+  paragraphR e v o c (overlays xs) =
+    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> switchCombi o (paragraphR e v o c a) b a (overlays xs)) b) Nothing xs)
 "paragraph/connects" forall e v o c xs.
-  paragraph e v o c (connects xs) =
-    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> c (paragraph e v o c a) b a (overlays xs)) b) Nothing xs)
+  paragraphR e v o c (connects xs) =
+    fromMaybe e (paral (\a xs b -> Just $ maybe a (\b -> switchCombi c (paragraphR e v o c a) b a (overlays xs)) b) Nothing xs)
  #-}
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
@@ -602,7 +601,6 @@ size = foldg 1 (const 1) (+) (+)
 hasVertex :: Eq a => a -> Graph a -> Bool
 hasVertex x = foldg False (==x) (||) (||)
 {-# INLINE hasVertex #-}
-{-- # SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
 
 -- | Check if a graph contains a given edge.
 -- Complexity: /O(s)/ time.

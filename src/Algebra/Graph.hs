@@ -26,7 +26,7 @@ module Algebra.Graph (
     empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
 
     -- * Graph folding
-    foldg, paragraph, paragraphR, Combination (..),
+    foldg, paragraph,
 
     -- * Relations on graphs
     isSubgraphOf, (===),

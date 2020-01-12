@@ -547,6 +547,19 @@ hasVertex :: Eq a => a -> Graph a -> Bool
 hasVertex x = foldg False (==x) (||) (||)
 {-# SPECIALISE hasVertex :: Int -> Graph Int -> Bool #-}
 
+data SmallNum = Zero | One | Two deriving (Eq)
+
+maxSN :: SmallNum -> SmallNum -> SmallNum
+maxSN x y =
+  case x of
+    Two  -> x
+    Zero -> y
+    One  ->
+      case y of
+        Zero -> x
+        _    -> y
+{-# INLINE maxSN #-}
+
 {- Note [The implementation of hasEdge]
 
 We fold a graph into a function of type Int -> Int where the Int stands for the
@@ -576,15 +589,12 @@ the computation as soon as the edge is matched.
 -- hasEdge x y                  == 'elem' (x,y) . 'edgeList'
 -- @
 hasEdge :: Eq a => a -> a -> Graph a -> Bool
-hasEdge s t g = foldg id v o c g 0 == 2
+hasEdge s t g = foldg id v o c g Zero == Two
   where
-    v x 0   = if x == s then 1 else 0
-    v x _   = if x == t then 2 else 1
-    o x y a = case x a of
-        0 -> y a
-        1 -> if y a == 2 then 2 else 1
-        2 -> 2 :: Int
-    c x y a = case x a of { 2 -> 2; res -> y res }
+    v x Zero = if x == s then One else Zero
+    v x _    = if x == t then Two else One
+    o x y a  = maxSN (x a) (y a)
+    c x y a  = let xa = x a in maxSN xa (y xa)
 {-# SPECIALISE hasEdge :: Int -> Int -> Graph Int -> Bool #-}
 
 -- | The number of vertices in a graph.
